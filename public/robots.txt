@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://farlandet.dk/sitemap.xml
+
+# Block admin and private areas (when they exist)
+Disallow: /admin/
+Disallow: /api/
+Disallow: /.env
+Disallow: /node_modules/
+
+# Allow common resources
+Allow: /css/
+Allow: /js/
+Allow: /images/
+Allow: /fonts/
