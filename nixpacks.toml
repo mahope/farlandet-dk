@@ -1,23 +1,14 @@
-[providers]
-node = "20.15.0"
+# Nixpacks configuration for Farlandet.dk
+providers = ["node"]
 
 [variables]
 NODE_ENV = "production"
-PORT = "3000"
-
-[phases.setup]
-nixPkgs = ["nodejs-20_x", "npm-9_x"]
 
 [phases.install]
-cmds = [
-  "npm ci --only=production=false",
-  "npm install -g serve"
-]
+cmds = ["npm ci", "npm install -g serve"]
 
 [phases.build]
-cmds = [
-  "npm run build:prod"
-]
+cmds = ["npm run build:prod"]
 
 [start]
-cmd = "npm start"
+cmd = "serve -s dist -l ${PORT:-3000}"
