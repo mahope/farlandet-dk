@@ -1,2 +1,2 @@
-// Re-export the useAuth hook from context for convenience
-export { useAuth } from '../contexts/AuthContext'
+// Re-export the useAuth hook from PocketBase context
+export { useAuth } from '../contexts/PocketBaseAuthContext'

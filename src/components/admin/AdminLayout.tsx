@@ -1,7 +1,6 @@
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Button } from '../ui/button'
-import { useAuth } from '../../contexts/AuthContext'
 
 interface AdminLayoutProps {
   children: ReactNode
@@ -9,7 +8,7 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation()
-  const { user, profile } = useAuth()
+  // TODO: Re-implement auth after PocketBase migration
 
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: '📊' },
@@ -42,7 +41,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
             <div className="flex items-center space-x-4">
               <span className="text-sm text-muted-foreground">
-                {profile?.username || user?.email}
+                Admin (Migration in Progress)
               </span>
               <Button asChild variant="outline" size="sm">
                 <Link to="/">← Tilbage til site</Link>
@@ -83,7 +82,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Rolle:</span>
-                  <span className="capitalize">{profile?.role || 'user'}</span>
+                  <span className="capitalize">admin</span>
                 </div>
               </div>
             </div>

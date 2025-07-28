@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Search, Menu, X, User, LogOut } from 'lucide-react'
 import { Button } from '../ui/button'
-import { useAuth } from '../../contexts/AuthContext'
+import { useAuth } from '../../contexts/PocketBaseAuthContext'
 import { cn } from '../../lib/utils'
 
 interface HeaderProps {
@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 export function Header({ onSearchChange, className }: HeaderProps) {
-  const { user, profile, signOut } = useAuth()
+  const { user, signOut, isAdmin, isModerator } = useAuth()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const location = useLocation()
@@ -79,12 +79,12 @@ export function Header({ onSearchChange, className }: HeaderProps) {
 
           {/* Desktop Navigation - Only show admin login */}
           <nav className="hidden md:flex items-center space-x-4">
-            {user && (profile?.role === 'admin' || profile?.role === 'moderator') && (
+            {user && (isAdmin || isModerator) && (
               <div className="flex items-center space-x-2">
                 <div className="flex items-center space-x-2 px-3 py-2 rounded-md bg-muted">
                   <User className="h-4 w-4" />
                   <span className="text-sm font-medium">
-                    {profile?.username || user.email?.split('@')[0]}
+                    {user.username || user.email?.split('@')[0]}
                   </span>
                 </div>
                 <Button
@@ -150,12 +150,12 @@ export function Header({ onSearchChange, className }: HeaderProps) {
         {isMenuOpen && (
           <div className="md:hidden border-t bg-background">
             <nav className="py-4 space-y-2">
-              {user && (profile?.role === 'admin' || profile?.role === 'moderator') && (
+              {user && (isAdmin || isModerator) && (
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2 px-3 py-2 rounded-md bg-muted">
                     <User className="h-4 w-4" />
                     <span className="text-sm font-medium">
-                      {profile?.username || user.email?.split('@')[0]}
+                      {user.username || user.email?.split('@')[0]}
                     </span>
                   </div>
                   <Button

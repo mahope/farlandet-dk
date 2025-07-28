@@ -1,4 +1,3 @@
-import React from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { useCategories } from '../hooks/useCategories'
@@ -11,7 +10,7 @@ export function CategoriesPage() {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="flex items-center justify-center min-h-[400px]">
-          <LoadingSpinner size={48} />
+          <LoadingSpinner size="lg" />
         </div>
       </div>
     )
@@ -65,7 +64,7 @@ export function CategoriesPage() {
                 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
-                    {category.resourceCount || 0} ressourcer
+                    0 ressourcer
                   </span>
                   <Button variant="ghost" size="sm">
                     Se alle →

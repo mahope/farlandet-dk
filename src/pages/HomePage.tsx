@@ -1,21 +1,16 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/button'
-import { useAuth } from '../contexts/AuthContext'
 import { useSEO } from '../hooks/useSEO'
-import { tables } from '../lib/supabase'
-import { useSupabaseFallback } from '../hooks/useSupabaseFallback'
+import { PocketBaseAPI } from '../lib/pocketbase'
 import { LoadingSpinner } from '../components/ui/loading-spinner'
-import { SupabaseDebug } from '../components/debug/SupabaseDebug'
-import type { Resource } from '../types'
+import type { ResourceWithRelations } from '../types/pocketbase'
 
 export function HomePage() {
-  const fallback = useSupabaseFallback()
-  const [allResources, setAllResources] = useState<Resource[]>([])
-  const [filteredResources, setFilteredResources] = useState<Resource[]>([])
+  const [allResources, setAllResources] = useState<ResourceWithRelations[]>([])
+  const [filteredResources, setFilteredResources] = useState<ResourceWithRelations[]>([])
   const [loadingResources, setLoadingResources] = useState(true)
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('')
-  const [useFallback, setUseFallback] = useState(false)
 
   // Quick resource type filters for homepage
   const quickFilters = [
@@ -41,79 +36,31 @@ export function HomePage() {
       try {
         setLoadingResources(true)
         
-        // Try fallback first if Supabase SDK is having issues
-        if (useFallback || fallback.error) {
-          console.log('Using fallback API...')
-          try {
-            const data = await fallback.getResources()
-            
-            if (data && data.length > 0) {
-              console.log(`✅ Fallback API loaded ${data.length} resources`)
-              const transformedResources = data.map((resource: any) => ({
-                ...resource,
-                tags: resource.tags?.map((rt: any) => rt.tag).filter(Boolean) || [],
-                category: resource.category || undefined
-              })) as Resource[]
-              setAllResources(transformedResources)
-              setFilteredResources(transformedResources)
-            } else {
-              console.warn('⚠️ Fallback API returned empty result')
-              setAllResources([])
-              setFilteredResources([])
-            }
-            return
-          } catch (fallbackError) {
-            console.error('❌ Fallback API failed:', fallbackError)
-            // Continue to try SDK as last resort
-          }
-        }
-
-        // Try normal Supabase SDK first with timeout
-        try {
-          console.log('🔄 Trying Supabase SDK...')
-          const sdkPromise = tables.resources()
-            .select(`
-              *,
-              category:categories(*),
-              tags:resource_tags(tag:tags(*))
-            `)
-            .eq('status', 'approved')
-            .order('created_at', { ascending: false })
+        console.log('🔄 Fetching resources from PocketBase...')
+        
+        // Get all approved resources with expanded relations
+        const result = await PocketBaseAPI.getApprovedResources(1, 200, 'category,submitter')
+        
+        if (result.items && result.items.length > 0) {
+          console.log(`✅ PocketBase loaded ${result.items.length} resources successfully`)
           
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('SDK timeout after 8 seconds')), 8000)
-          )
-
-          const { data, error } = await Promise.race([sdkPromise, timeoutPromise]) as any
-
-          if (error) {
-            console.error('❌ SDK Error fetching resources, trying fallback:', error)
-            setUseFallback(true)
-            return // This will trigger useEffect again with fallback
-          }
-
-          // Transform data to match types
-          if (data && data.length > 0) {
-            console.log(`✅ SDK loaded ${data.length} resources successfully`)
-            const transformedResources = data.map(resource => ({
-              ...resource,
-              tags: resource.tags?.map((rt: any) => rt.tag).filter(Boolean) || [],
-              category: resource.category || undefined
-            })) as Resource[]
-            setAllResources(transformedResources)
-            setFilteredResources(transformedResources)
-          } else {
-            console.warn('⚠️ SDK returned empty result')
-            setAllResources([])
-            setFilteredResources([])
-          }
-        } catch (sdkError) {
-          console.error('❌ SDK failed with exception, using fallback:', sdkError)
-          setUseFallback(true)
-          return // This will trigger useEffect again with fallback
+          // Transform PocketBase data to match our component expectations
+          const transformedResources: ResourceWithRelations[] = result.items.map(resource => ({
+            ...resource,
+            category: resource.expand?.category,
+            submitter: resource.expand?.submitter,
+            tags: [], // Will be populated separately if needed
+          }))
+          
+          setAllResources(transformedResources)
+          setFilteredResources(transformedResources)
+        } else {
+          console.warn('⚠️ PocketBase returned empty result')
+          setAllResources([])
+          setFilteredResources([])
         }
       } catch (error) {
-        console.error('Error fetching resources:', error)
+        console.error('❌ PocketBase error fetching resources:', error)
         setAllResources([])
         setFilteredResources([])
       } finally {
@@ -122,7 +69,7 @@ export function HomePage() {
     }
 
     fetchAllResources()
-  }, [useFallback, fallback])
+  }, [])
 
   // Filter resources by type
   useEffect(() => {
@@ -200,12 +147,17 @@ export function HomePage() {
                       {resource.resource_type === 'movie' && '🍿'}
                       {resource.resource_type === 'tv_series' && '📺'}
                     </span>
-                    {resource.category && (
+                    {resource.category && typeof resource.category === 'object' && (
                       <span 
                         className="px-2 py-1 text-xs rounded-full text-white"
                         style={{ backgroundColor: resource.category.color }}
                       >
                         {resource.category.name}
+                      </span>
+                    )}
+                    {resource.category && typeof resource.category === 'string' && (
+                      <span className="px-2 py-1 text-xs rounded-full bg-gray-500 text-white">
+                        {resource.category}
                       </span>
                     )}
                   </div>
@@ -234,7 +186,7 @@ export function HomePage() {
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(resource.created_at).toLocaleDateString('da-DK')}
+                    {new Date(resource.created).toLocaleDateString('da-DK')}
                   </span>
                 </div>
               </Link>
@@ -249,8 +201,6 @@ export function HomePage() {
         )}
       </div>
 
-      {/* Debug component - remove in production */}
-      {import.meta.env.DEV && <SupabaseDebug />}
     </div>
   )
 }

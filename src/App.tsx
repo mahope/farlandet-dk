@@ -1,4 +1,4 @@
-import { AuthProvider } from './contexts/AuthContext'
+import { AuthProvider } from './contexts/PocketBaseAuthContext'
 import { AppRouter } from './components/router/AppRouter'
 import { ErrorBoundary } from './components/ui/error-boundary'
 

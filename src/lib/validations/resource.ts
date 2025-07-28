@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-// Define ResourceType locally to avoid circular imports
-type ResourceType = 'link' | 'pdf' | 'article' | 'podcast' | 'tip' | 'book' | 'video' | 'movie' | 'tv_series'
+// Resource types for validation
+const resourceTypes = ['link', 'pdf', 'article', 'podcast', 'tip', 'book', 'video', 'movie', 'tv_series'] as const
 
 // Resource submission validation schema
 export const resourceSubmissionSchema = z.object({
@@ -13,7 +13,7 @@ export const resourceSubmissionSchema = z.object({
     .string()
     .max(2000, 'Beskrivelse må ikke være længere end 2000 tegn')
     .optional(),
-  resourceType: z.enum(['link', 'pdf', 'article', 'podcast', 'tip', 'book', 'video', 'movie', 'tv_series'] as const),
+  resourceType: z.enum(resourceTypes),
   categoryId: z
     .string()
     .min(1, 'Vælg venligst en kategori'),
@@ -66,7 +66,7 @@ export const resourceSubmissionSchema = z.object({
   }).optional(),
 }).refine((data) => {
   // Validate that URL is required for non-tip, non-pdf resource types
-  if (['link', 'article', 'podcast', 'book', 'video', 'movie', 'tv_series'].includes(data.resourceType)) {
+  if (resourceTypes.filter(type => !['tip', 'pdf'].includes(type)).includes(data.resourceType)) {
     return data.url && data.url.length > 0
   }
   return true

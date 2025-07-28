@@ -1,105 +1,130 @@
-import React, { useState } from 'react'
-import { ResourceSubmissionForm } from '../components/resource/ResourceSubmissionForm'
-import { Button } from '../components/ui/button'
-import { Link } from 'react-router-dom'
-import { CheckCircle, Plus } from 'lucide-react'
+
 import { useSEO } from '../hooks/useSEO'
 
 export function SubmitResourcePage() {
-  const [submitted, setSubmitted] = useState(false)
-
   useSEO({
-    title: 'Bidrag med Ressource - Farlandet.dk',
-    description: 'Del dine værdifulde ressourcer med danske fædre. Tilføj podcasts, artikler, tips, bøger og meget mere til vores fælles bibliotek.',
-    keywords: ['bidrag ressource', 'del indhold', 'submit resource', 'forslag til fædre', 'community bidrag'],
+    title: 'Indsend Ressource - Farlandet.dk',
+    description: 'Del en ressource med Farlandet.dk fællesskabet. Upload links, PDFer, podcasts, artikler og meget mere.',
+    keywords: ['indsend ressource', 'del link', 'upload pdf', 'fællesskab bidrag'],
     url: 'https://farlandet.dk/submit',
+    type: 'website'
   })
 
-  const handleSubmissionSuccess = () => {
-    setSubmitted(true)
-  }
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="text-center mb-8">
+        <h1 className="text-4xl font-bold mb-4">
+          Indsend en Ressource
+        </h1>
+        <p className="text-lg text-muted-foreground">
+          Del værdifulde ressourcer med det danske fædrefællesskab
+        </p>
+      </div>
 
-  if (submitted) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="text-center">
-          <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-6" />
-          <h1 className="text-3xl font-bold mb-4">Tak for dit bidrag!</h1>
-          <p className="text-muted-foreground mb-6">
-            Din ressource er sendt til gennemgang og vil blive offentliggjort efter godkendelse.
-          </p>
-          <div className="space-y-4">
-            <div className="p-4 bg-muted rounded-lg">
-              <h3 className="font-semibold mb-2">Hvad sker der nu?</h3>
-              <ul className="text-sm text-muted-foreground space-y-2">
-                <li>• Din ressource gennemgås af vores moderatorer</li>
-                <li>• Du får besked når ressourcen er godkendt</li>
-                <li>• Ressourcen bliver tilgængelig for alle brugere</li>
-              </ul>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button onClick={() => setSubmitted(false)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Tilføj en til
-              </Button>
-              <Button variant="outline" asChild>
-                <Link to="/resources">
-                  Se alle ressourcer
-                </Link>
-              </Button>
-            </div>
+      {/* Migration notice */}
+      <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-lg mb-8">
+        <h2 className="text-2xl font-semibold mb-4 text-yellow-800">⚠️ Under Migration</h2>
+        <p className="text-yellow-700 mb-4">
+          Funktionaliteten for at indsende ressourcer er midlertidigt utilgængelig mens vi migrerer til PocketBase.
+        </p>
+        <p className="text-yellow-700">
+          Du kan stadig browse eksisterende ressourcer på forsiden. Indsendelse af nye ressourcer kommer snart tilbage!
+        </p>
+      </div>
+
+      {/* Introduction section */}
+      <div className="bg-card p-6 rounded-lg mb-8">
+        <h2 className="text-2xl font-semibold mb-4">Hvad kan du dele?</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔗</span>
+            <span>Links til nyttige websites</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📄</span>
+            <span>PDF dokumenter</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎧</span>
+            <span>Podcast episoder</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📰</span>
+            <span>Artikler og blogindlæg</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📚</span>
+            <span>Bøger og e-bøger</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">💡</span>
+            <span>Tips og tricks</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎥</span>
+            <span>Videoer og tutorials</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🍿</span>
+            <span>Film og TV-serier</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📺</span>
+            <span>Dokumentarer</span>
           </div>
         </div>
       </div>
-    )
-  }
 
-  return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">Bidrag med Indhold</h1>
-        <p className="text-muted-foreground">
-          Del en ressource med fællesskabet. Det kan være en artikel, bog, video, tip eller andet nyttigt indhold for danske fædre.
-        </p>
-      </div>
-
-      {/* Guidelines */}
-      <div className="mb-8 p-6 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-        <h3 className="text-lg font-semibold mb-3 text-blue-900 dark:text-blue-100">Retningslinjer for indhold</h3>
-        <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
-          <li>• Indholdet skal være relevant for danske fædre</li>
-          <li>• Vær respektfuld og konstruktiv i din tilgang</li>
-          <li>• Sørg for at links og filer er tilgængelige</li>
-          <li>• Beskriv indholdet tydeligt så andre kan vurdere relevansen</li>
-          <li>• Undgå duplikater - tjek om ressourcen allerede findes</li>
+      {/* Guidelines section */}
+      <div className="bg-card p-6 rounded-lg mb-8">
+        <h2 className="text-2xl font-semibold mb-4">Retningslinjer for Indsendelse</h2>
+        <ul className="space-y-2 text-muted-foreground">
+          <li className="flex items-start gap-2">
+            <span className="text-green-500 mt-1">✓</span>
+            <span>Ressourcen skal være relevant for danske fædre</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-green-500 mt-1">✓</span>
+            <span>Skriv en klar og beskrivende titel</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-green-500 mt-1">✓</span>
+            <span>Tilføj en kort beskrivelse af indholdet</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-green-500 mt-1">✓</span>
+            <span>Vælg den mest passende kategori</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-green-500 mt-1">✓</span>
+            <span>Tilføj relevante tags for lettere søgning</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-red-500 mt-1">✗</span>
+            <span>Indhold der ikke er relevant for forældreskab</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-red-500 mt-1">✗</span>
+            <span>Spam, reklamer eller kommercielt indhold</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-red-500 mt-1">✗</span>
+            <span>Stødende eller upassende materiale</span>
+          </li>
         </ul>
       </div>
 
-      {/* Submission Form */}
-      <div className="mb-8">
-        <ResourceSubmissionForm onSuccess={handleSubmissionSuccess} />
-      </div>
-
-      {/* Help Section */}
-      <div className="mt-12 p-6 bg-muted rounded-lg">
-        <h3 className="text-lg font-semibold mb-3">Brug for hjælp?</h3>
-        <p className="text-muted-foreground mb-4">
-          Hvis du har spørgsmål om at indsende indhold eller støder på problemer, kan du kontakte os.
+      {/* Call to action */}
+      <div className="text-center bg-muted p-8 rounded-lg">
+        <h2 className="text-2xl font-semibold mb-4">
+          Kom snart tilbage
+        </h2>
+        <p className="text-muted-foreground mb-6">
+          Indsendelse af ressourcer kommer tilbage efter migrationen til PocketBase er færdig
         </p>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <Button variant="outline" asChild>
-            <Link to="/guidelines">
-              Læs retningslinjer
-            </Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link to="/contact">
-              Kontakt support
-            </Link>
-          </Button>
-        </div>
+        <a href="/" className="inline-block bg-primary text-primary-foreground px-6 py-3 rounded-md hover:bg-primary/90 transition-colors">
+          Gå til Forsiden
+        </a>
       </div>
     </div>
   )

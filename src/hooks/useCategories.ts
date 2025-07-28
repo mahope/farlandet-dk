@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { tables } from '../lib/supabase'
-import type { Category } from '../types'
+import { PocketBaseAPI } from '../lib/pocketbase'
+import type { Category } from '../types/pocketbase'
 
 // Fallback categorier hvis database ikke er tilgængelig
 const fallbackCategories: Category[] = [
@@ -10,8 +10,8 @@ const fallbackCategories: Category[] = [
     description: 'Generelle råd og ressourcer om forældreskab',
     slug: 'foraeldre',
     color: '#3B82F6',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created: new Date().toISOString(),
+    updated: new Date().toISOString(),
   },
   {
     id: 'fallback-2',
@@ -19,8 +19,8 @@ const fallbackCategories: Category[] = [
     description: 'Sundhed, motion og mental trivsel for fædre',
     slug: 'sundhed',
     color: '#10B981',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created: new Date().toISOString(),
+    updated: new Date().toISOString(),
   },
   {
     id: 'fallback-3',
@@ -28,8 +28,8 @@ const fallbackCategories: Category[] = [
     description: 'Aktiviteter og oplevelser med børn',
     slug: 'aktiviteter',
     color: '#F59E0B',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created: new Date().toISOString(),
+    updated: new Date().toISOString(),
   },
   {
     id: 'fallback-4',
@@ -37,8 +37,8 @@ const fallbackCategories: Category[] = [
     description: 'Læringsressourcer og uddannelsesmateriale',
     slug: 'uddannelse',
     color: '#8B5CF6',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created: new Date().toISOString(),
+    updated: new Date().toISOString(),
   },
 ]
 
@@ -52,31 +52,25 @@ export function useCategories() {
       try {
         setLoading(true)
         
-        // Tjek om Supabase miljøvariabler er konfigureret
-        const hasSupabaseConfig = import.meta.env.VITE_SUPABASE_URL && 
-                                  import.meta.env.VITE_SUPABASE_ANON_KEY &&
-                                  import.meta.env.VITE_SUPABASE_URL !== 'https://placeholder.supabase.co'
+        // Tjek om PocketBase er tilgængeligt
+        const hasPocketBaseConfig = import.meta.env.VITE_POCKETBASE_URL
 
-        if (!hasSupabaseConfig) {
-          console.warn('Supabase not configured, using fallback categories')
+        if (!hasPocketBaseConfig) {
+          console.warn('PocketBase not configured, using fallback categories')
           setCategories(fallbackCategories)
           setLoading(false)
           return
         }
 
-        const { data, error } = await tables.categories()
-          .select('*')
-          .order('name')
+        const data = await PocketBaseAPI.getCategories()
 
-        if (error) {
-          console.error('Error fetching categories:', error)
-          console.warn('Using fallback categories due to database error')
+        if (data && data.length > 0) {
+          setCategories(data)
+        } else {
+          console.warn('Using fallback categories - no data from PocketBase')
           setCategories(fallbackCategories)
           setError('Bruger backup kategorier')
-          return
         }
-
-        setCategories(data && data.length > 0 ? data : fallbackCategories)
       } catch (err) {
         console.error('Error fetching categories:', err)
         console.warn('Using fallback categories due to network error')
