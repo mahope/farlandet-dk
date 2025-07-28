@@ -5,10 +5,10 @@ providers = ["node"]
 NODE_ENV = "production"
 
 [phases.install]
-cmds = ["npm ci", "npm install -g serve"]
+cmds = ["npm ci"]
 
 [phases.build]
 cmds = ["npm run build:prod"]
 
 [start]
-cmd = "serve -s dist -l ${PORT:-3000}"
+cmd = "npx serve -s dist -l ${PORT:-3000}"
