@@ -27,7 +27,17 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
-// Health check endpoint
+// Simple ping endpoint (always works)
+app.get('/api/ping', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Farlandet server is running!',
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV || 'development'
+  })
+})
+
+// Health check endpoint (includes database status)
 app.get('/api/health', async (req, res) => {
   try {
     const dbConnected = await testDatabaseConnection(1)
@@ -99,14 +109,25 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 async function startServer() {
   console.log('🚀 Starting Farlandet API server...')
   
+  // Always start the server first
+  app.listen(PORT, () => {
+    console.log('🎉 Farlandet server is running!')
+    console.log(`📍 Server running on port: ${PORT}`)
+    console.log(`📊 Health check: /api/health`)
+    console.log(`🌐 Frontend: ${process.env.NODE_ENV === 'production' ? 'served at /' : 'run separately on port 5173'}`)
+  })
+  
+  // Try database setup in background (non-blocking)
   try {
-    // Test database connection
     console.log('🔍 Testing database connection...')
     const connected = await testDatabaseConnection()
+    
     if (!connected) {
-      console.error('❌ Could not connect to database. Please check your configuration.')
-      process.exit(1)
+      console.warn('⚠️  Database not available. API endpoints will return errors until database is configured.')
+      return
     }
+    
+    console.log('✅ Database connected successfully!')
     
     // Check if database is initialized
     const initialized = await isDatabaseInitialized()
@@ -124,28 +145,13 @@ async function startServer() {
       console.log('✅ Database seeded successfully!')
     }
     
-    // Start the server
-    app.listen(PORT, () => {
-      console.log('🎉 Farlandet API server is ready!')
-      console.log(`📍 Server running on: http://localhost:${PORT}`)
-      console.log(`📊 Health check: http://localhost:${PORT}/api/health`)
-      console.log(`📝 API endpoints:`)
-      console.log(`   - GET  /api/resources (list resources)`)
-      console.log(`   - POST /api/resources (submit resource)`)
-      console.log(`   - GET  /api/categories (list categories)`)
-      console.log('\n🔧 Next steps:')
-      console.log('   - Start frontend: npm run dev (from root directory)')
-      console.log('   - Visit admin panel: http://localhost:5173/admin')
-      console.log('   - Default admin: admin@farlandet.dk / admin123')
-    })
+    console.log('🎯 Database setup complete! All API endpoints are ready.')
     
   } catch (error: any) {
-    console.error('❌ Failed to start server:', error.message)
-    console.error('\n💡 Troubleshooting tips:')
-    console.error('   - Check database is running: pg_ctl status')
-    console.error('   - Verify database exists: psql -l | grep farlandet')
-    console.error('   - Check environment variables in .env file')
-    process.exit(1)
+    console.warn('⚠️  Database setup failed:', error.message)
+    console.warn('💡 Server is running but API endpoints may not work without database.')
+    console.warn('   - Set DATABASE_URL environment variable')
+    console.warn('   - Or configure individual DB_* variables')
   }
 }
 
