@@ -6,10 +6,10 @@ NODE_ENV = "production"
 NIXPACKS_NODE_VERSION = "20"
 
 [phases.install]
-cmds = ["npm ci"]
+cmds = ["npm ci", "cd server && npm ci"]
 
 [phases.build]
-cmds = ["npm run build:prod"]
+cmds = ["npm run build:prod", "cd server && npm run build"]
 
 [start]
-cmd = "npx serve -s dist -l ${PORT:-3000}"
+cmd = "cd server && npm start"

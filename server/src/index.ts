@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import dotenv from 'dotenv'
+import path from 'path'
 
 import resourceRoutes from './routes/resources'
 import categoryRoutes from './routes/categories'
@@ -58,13 +59,31 @@ app.use('/api/categories', categoryRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/admin', adminRoutes)
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Endpoint not found'
+// Serve static frontend files in production
+if (process.env.NODE_ENV === 'production') {
+  const frontendDistPath = path.join(__dirname, '../../dist')
+  app.use(express.static(frontendDistPath))
+  
+  // Handle client-side routing - serve index.html for all non-API routes
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(frontendDistPath, 'index.html'))
+    } else {
+      res.status(404).json({
+        success: false,
+        error: 'API endpoint not found'
+      })
+    }
   })
-})
+} else {
+  // 404 handler for development (when frontend runs separately)
+  app.use('*', (req, res) => {
+    res.status(404).json({
+      success: false,
+      error: 'Endpoint not found'
+    })
+  })
+}
 
 // Global error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
