@@ -49,10 +49,7 @@ export function CategoriesPage() {
             <Link key={category.id} to={`/resources?category=${category.id}`}>
               <div className="p-6 border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50">
                 <div className="flex items-center mb-3">
-                  <div 
-                    className="w-4 h-4 rounded-full mr-3"
-                    style={{ backgroundColor: category.color }}
-                  />
+                  <div className="w-4 h-4 rounded-full mr-3 bg-blue-500" />
                   <h3 className="text-lg font-semibold">{category.name}</h3>
                 </div>
                 

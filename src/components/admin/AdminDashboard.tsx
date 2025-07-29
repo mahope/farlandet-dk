@@ -4,7 +4,6 @@ import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { 
   BarChart3, 
-  Users, 
   FileText, 
   CheckCircle, 
   XCircle, 
