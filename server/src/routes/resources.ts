@@ -92,7 +92,7 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     const validatedData = createResourceSchema.parse(req.body)
     
-    const resource = await resourceService.createResource(validatedData)
+    const resource = await resourceService.createResource(validatedData as any)
     
     res.status(201).json({
       success: true,
