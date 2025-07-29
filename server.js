@@ -145,8 +145,8 @@ const validateResourceSubmission = [
     .escape(),
   body('description')
     .trim()
-    .isLength({ max: 2000 })
-    .withMessage('Beskrivelse må højst være 2000 tegn')
+    .isLength({ min: 10, max: 2000 })
+    .withMessage('Beskrivelse skal være mellem 10 og 2000 tegn')
     .escape(),
   body('url')
     .isURL({ require_protocol: true })
@@ -172,15 +172,20 @@ const validateResourceSubmission = [
     .withMessage('Email adresse er ikke gyldig')
     .normalizeEmail(),
   body('tags')
-    .optional()
+    .optional({ checkFalsy: true })
     .custom(value => {
+      // Skip validation if empty or undefined
+      if (!value || value === '') {
+        return true;
+      }
+      
       if (Array.isArray(value)) {
         if (value.length > 10) {
           throw new Error('Maksimalt 10 tags tilladt');
         }
         return value.every(tag => typeof tag === 'string' && tag.length <= 50);
       } else if (typeof value === 'string') {
-        const tags = value.split(',').map(t => t.trim());
+        const tags = value.split(',').map(t => t.trim()).filter(t => t.length > 0);
         if (tags.length > 10) {
           throw new Error('Maksimalt 10 tags tilladt');
         }
@@ -192,9 +197,17 @@ const validateResourceSubmission = [
 
 app.post('/api/resources', submitLimiter, validateResourceSubmission, (req, res) => {
   try {
+    // Log incoming request for debugging
+    console.log('Resource submission request:', {
+      body: req.body,
+      headers: req.headers['content-type'],
+      timestamp: new Date().toISOString()
+    });
+
     // Check validation results
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
       return res.status(400).json({
         success: false,
         error: errors.array()[0].msg,
