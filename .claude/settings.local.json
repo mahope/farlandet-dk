@@ -13,7 +13,12 @@
       "Bash(npm run build:*)",
       "Bash(curl:*)",
       "Bash(pkill:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(node server.js)",
+      "Bash(rg:*)",
+      "Bash(touch:*)",
+      "Bash(timeout:*)",
+      "Bash(PORT=3001 timeout 15 node server.js)"
     ],
     "deny": []
   }

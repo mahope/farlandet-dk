@@ -1,5 +1,36 @@
-
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Textarea } from '../components/ui/textarea'
 import { useSEO } from '../hooks/useSEO'
+import { logger, measurePerformanceAsync } from '../utils/logger'
+import DOMPurify from 'dompurify'
+import { 
+  BookOpen, 
+  Link as LinkIcon, 
+  FileText, 
+  Headphones, 
+  Lightbulb, 
+  Video,
+  Film,
+  Tv,
+  Send,
+  CheckCircle,
+  AlertCircle,
+  Sparkles
+} from 'lucide-react'
+
+interface ResourceSubmission {
+  title: string
+  description: string
+  url: string
+  type: string
+  submitter_email: string
+  tags: string
+}
 
 export function SubmitResourcePage() {
   useSEO({
@@ -10,121 +41,354 @@ export function SubmitResourcePage() {
     type: 'website'
   })
 
-  return (
-    <div className="max-w-4xl mx-auto">
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold mb-4">
-          Indsend en Ressource
-        </h1>
-        <p className="text-lg text-muted-foreground">
-          Del værdifulde ressourcer med det danske fædrefællesskab
-        </p>
-      </div>
+  const navigate = useNavigate()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState('')
+  
+  const [formData, setFormData] = useState<ResourceSubmission>({
+    title: '',
+    description: '',
+    url: '',
+    type: 'link',
+    submitter_email: '',
+    tags: ''
+  })
 
-      {/* Migration notice */}
-      <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-lg mb-8">
-        <h2 className="text-2xl font-semibold mb-4 text-yellow-800">⚠️ Under Migration</h2>
-        <p className="text-yellow-700 mb-4">
-          Funktionaliteten for at indsende ressourcer er midlertidigt utilgængelig mens vi migrerer til PocketBase.
-        </p>
-        <p className="text-yellow-700">
-          Du kan stadig browse eksisterende ressourcer på forsiden. Indsendelse af nye ressourcer kommer snart tilbage!
-        </p>
-      </div>
+  const resourceTypes = [
+    { value: 'link', label: 'Link/Website', icon: LinkIcon, description: 'Hjemmesider, artikler, blogs' },
+    { value: 'article', label: 'Artikel', icon: FileText, description: 'Nyhedsartikler, guides, tutorials' },
+    { value: 'podcast', label: 'Podcast', icon: Headphones, description: 'Podcast episoder eller serier' },
+    { value: 'book', label: 'Bog', icon: BookOpen, description: 'Bøger, e-bøger, audiobooks' },
+    { value: 'video', label: 'Video', icon: Video, description: 'YouTube, Vimeo, uddannelsesvideoer' },
+    { value: 'movie', label: 'Film', icon: Film, description: 'Dokumentarer, film til fædre' },
+    { value: 'tv_series', label: 'TV Serie', icon: Tv, description: 'TV serier, miniserier' },
+    { value: 'tip', label: 'Tip & Trick', icon: Lightbulb, description: 'Praktiske råd og tips' }
+  ]
 
-      {/* Introduction section */}
-      <div className="bg-card p-6 rounded-lg mb-8">
-        <h2 className="text-2xl font-semibold mb-4">Hvad kan du dele?</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🔗</span>
-            <span>Links til nyttige websites</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">📄</span>
-            <span>PDF dokumenter</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🎧</span>
-            <span>Podcast episoder</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">📰</span>
-            <span>Artikler og blogindlæg</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">📚</span>
-            <span>Bøger og e-bøger</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">💡</span>
-            <span>Tips og tricks</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🎥</span>
-            <span>Videoer og tutorials</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🍿</span>
-            <span>Film og TV-serier</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">📺</span>
-            <span>Dokumentarer</span>
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      // Sanitize form data before submission
+      const sanitizedData = {
+        title: DOMPurify.sanitize(formData.title.trim()),
+        description: DOMPurify.sanitize(formData.description.trim()),
+        url: formData.url.trim(),
+        type: formData.type,
+        submitter_email: formData.submitter_email ? DOMPurify.sanitize(formData.submitter_email.trim()) : '',
+        tags: formData.tags.split(',').map(tag => DOMPurify.sanitize(tag.trim())).filter(Boolean)
+      }
+
+      // Log submission attempt (without sensitive data)
+      logger.info('Resource submission attempt', {
+        component: 'SubmitResourcePage',
+        action: 'form_submit',
+        resourceType: sanitizedData.type,
+        hasEmail: !!sanitizedData.submitter_email,
+        tagsCount: sanitizedData.tags.length
+      })
+
+      const result = await measurePerformanceAsync(
+        'resource_submission',
+        async () => {
+          const response = await fetch('/api/resources', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(sanitizedData),
+          })
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+          }
+
+          return await response.json()
+        },
+        { component: 'SubmitResourcePage' }
+      )
+
+      if (result.success) {
+        setSubmitted(true)
+        logger.info('Resource submitted successfully', {
+          component: 'SubmitResourcePage',
+          action: 'form_submit_success',
+          resourceId: result.data?.id
+        })
+      } else {
+        const errorMessage = result.error || 'Der opstod en fejl ved indsendelse'
+        setError(errorMessage)
+        logger.warn('Resource submission failed', {
+          component: 'SubmitResourcePage',
+          action: 'form_submit_error', 
+          error: errorMessage,
+          details: result.details
+        })
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Netværksfejl. Prøv igen senere.'
+      setError('Netværksfejl. Prøv igen senere.')
+      logger.error('Resource submission network error', err as Error, {
+        component: 'SubmitResourcePage',
+        action: 'form_submit_network_error'
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleInputChange = (field: keyof ResourceSubmission, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle py-20">
+        <div className="container mx-auto px-4 lg:px-6">
+          <div className="max-w-2xl mx-auto text-center">
+            <Card className="border-0 shadow-xl animate-scale-in">
+              <CardHeader className="pb-6">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="h-8 w-8 text-primary" />
+                </div>
+                <CardTitle className="text-display-sm text-foreground mb-2">
+                  Tak for dit bidrag!
+                </CardTitle>
+                <CardDescription className="text-lg text-muted-foreground">
+                  Din ressource er modtaget og vil blive gennemgået af vores moderatorer inden publicering.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-primary/5 rounded-lg p-4 text-sm text-muted-foreground">
+                  <p className="mb-2">
+                    <strong>Hvad sker der nu?</strong>
+                  </p>
+                  <ul className="space-y-1 text-left">
+                    <li>• Vi gennemgår dit indhold for kvalitet og relevans</li>
+                    <li>• Processen tager typisk 1-2 dage</li>
+                    <li>• Du får besked hvis der er spørgsmål</li>
+                  </ul>
+                </div>
+                <div className="flex gap-3 justify-center pt-4">
+                  <Button onClick={() => navigate('/')} variant="outline">
+                    Tilbage til forsiden
+                  </Button>
+                  <Button onClick={() => {
+                    setSubmitted(false)
+                    setFormData({
+                      title: '',
+                      description: '',
+                      url: '',
+                      type: 'link',
+                      submitter_email: '',
+                      tags: ''
+                    })
+                  }}>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Bidrag med mere
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
+    )
+  }
 
-      {/* Guidelines section */}
-      <div className="bg-card p-6 rounded-lg mb-8">
-        <h2 className="text-2xl font-semibold mb-4">Retningslinjer for Indsendelse</h2>
-        <ul className="space-y-2 text-muted-foreground">
-          <li className="flex items-start gap-2">
-            <span className="text-green-500 mt-1">✓</span>
-            <span>Ressourcen skal være relevant for danske fædre</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-green-500 mt-1">✓</span>
-            <span>Skriv en klar og beskrivende titel</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-green-500 mt-1">✓</span>
-            <span>Tilføj en kort beskrivelse af indholdet</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-green-500 mt-1">✓</span>
-            <span>Vælg den mest passende kategori</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-green-500 mt-1">✓</span>
-            <span>Tilføj relevante tags for lettere søgning</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-red-500 mt-1">✗</span>
-            <span>Indhold der ikke er relevant for forældreskab</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-red-500 mt-1">✗</span>
-            <span>Spam, reklamer eller kommercielt indhold</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-red-500 mt-1">✗</span>
-            <span>Stødende eller upassende materiale</span>
-          </li>
-        </ul>
-      </div>
+  return (
+    <div className="min-h-screen bg-gradient-subtle py-20">
+      <div className="container mx-auto px-4 lg:px-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-12 animate-fade-in">
+            <div className="inline-flex items-center space-x-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium mb-4">
+              <Sparkles className="h-4 w-4" />
+              <span>Bidrag til fællesskabet</span>
+            </div>
+            <h1 className="text-display-md font-bold text-foreground mb-4">
+              Del en ressource
+            </h1>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Hjælp andre danske fædre ved at dele værdifuldt indhold. Alt fra praktiske tips til inspirerende artikler.
+            </p>
+          </div>
 
-      {/* Call to action */}
-      <div className="text-center bg-muted p-8 rounded-lg">
-        <h2 className="text-2xl font-semibold mb-4">
-          Kom snart tilbage
-        </h2>
-        <p className="text-muted-foreground mb-6">
-          Indsendelse af ressourcer kommer tilbage efter migrationen til PocketBase er færdig
-        </p>
-        <a href="/" className="inline-block bg-primary text-primary-foreground px-6 py-3 rounded-md hover:bg-primary/90 transition-colors">
-          Gå til Forsiden
-        </a>
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Main Form */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Basic Information */}
+                <Card className="border-0 shadow-lg animate-fade-in">
+                  <CardHeader>
+                    <CardTitle className="text-foreground">Grundlæggende information</CardTitle>
+                    <CardDescription>
+                      Fortæl os om den ressource du vil dele
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="title" className="text-sm font-medium text-foreground">
+                        Titel *
+                      </Label>
+                      <Input
+                        id="title"
+                        value={formData.title}
+                        onChange={(e) => handleInputChange('title', e.target.value)}
+                        placeholder="Hvad hedder ressourcen?"
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="url" className="text-sm font-medium text-foreground">
+                        URL/Link *
+                      </Label>
+                      <Input
+                        id="url"
+                        type="url"
+                        value={formData.url}
+                        onChange={(e) => handleInputChange('url', e.target.value)}
+                        placeholder="https://..."
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="description" className="text-sm font-medium text-foreground">
+                        Beskrivelse *
+                      </Label>
+                      <Textarea
+                        id="description"
+                        value={formData.description}
+                        onChange={(e) => handleInputChange('description', e.target.value)}
+                        placeholder="Beskriv ressourcen og hvorfor den er værdifuld for andre fædre..."
+                        rows={4}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="submitter_email" className="text-sm font-medium text-foreground">
+                        Din email
+                      </Label>
+                      <Input
+                        id="submitter_email"
+                        type="email"
+                        value={formData.submitter_email}
+                        onChange={(e) => handleInputChange('submitter_email', e.target.value)}
+                        placeholder="din@email.dk (valgfrit)"
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Kun hvis du vil kontaktes ved spørgsmål
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="tags" className="text-sm font-medium text-foreground">
+                        Tags
+                      </Label>
+                      <Input
+                        id="tags"
+                        value={formData.tags}
+                        onChange={(e) => handleInputChange('tags', e.target.value)}
+                        placeholder="forældreskab, aktiviteter, sundhed (kommasepareret)"
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Hjælper andre med at finde indholdet
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {error && (
+                  <Card className="border-destructive/20 bg-destructive/5 animate-scale-in">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center space-x-2 text-destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <span className="text-sm font-medium">{error}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {/* Resource Type Selection */}
+              <div className="space-y-6">
+                <Card className="border-0 shadow-lg animate-fade-in">
+                  <CardHeader>
+                    <CardTitle className="text-foreground">Type af ressource</CardTitle>
+                    <CardDescription>
+                      Vælg den kategori der passer bedst
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {resourceTypes.map((type) => (
+                      <label
+                        key={type.value}
+                        className={`flex items-start space-x-3 p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                          formData.type === type.value
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border hover:border-primary/50 hover:bg-accent'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="type"
+                          value={type.value}
+                          checked={formData.type === type.value}
+                          onChange={(e) => handleInputChange('type', e.target.value)}
+                          className="sr-only"
+                        />
+                        <type.icon className={`h-5 w-5 mt-0.5 ${
+                          formData.type === type.value ? 'text-primary' : 'text-muted-foreground'
+                        }`} />
+                        <div className="flex-1">
+                          <div className={`font-medium text-sm ${
+                            formData.type === type.value ? 'text-primary' : 'text-foreground'
+                          }`}>
+                            {type.label}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {type.description}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                {/* Submit Button */}
+                <Button 
+                  type="submit" 
+                  className="w-full btn-primary group" 
+                  disabled={isSubmitting}
+                  size="lg"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Sender...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
+                      Send ressource
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   )

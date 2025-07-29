@@ -1,7 +1,17 @@
 import express from 'express';
 import path from 'path';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { body, validationResult } from 'express-validator';
 import { fileURLToPath } from 'url';
+import { v4 as uuidv4 } from 'uuid';
+import DOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
+
+// Setup DOMPurify for server-side HTML sanitization
+const window = new JSDOM('').window;
+const purify = DOMPurify(window);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,6 +22,56 @@ const PORT = process.env.PORT || 3000;
 console.log('🚀 Starting Farlandet.dk server...');
 console.log(`📍 Port: ${PORT}`);
 console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "fonts.googleapis.com"],
+      fontSrc: ["'self'", "fonts.gstatic.com"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    success: false,
+    error: 'For mange forsøg. Prøv igen om 15 minutter.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Stricter rate limiting for API endpoints
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // limit each IP to 50 API requests per windowMs
+  message: {
+    success: false,
+    error: 'For mange API kald. Prøv igen om 15 minutter.'
+  }
+});
+
+// Even stricter for submissions
+const submitLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // limit each IP to 10 submissions per hour
+  message: {
+    success: false,
+    error: 'For mange indsendelser. Prøv igen om en time.'
+  }
+});
+
+app.use(limiter);
+app.use('/api/', apiLimiter);
 
 // Basic middleware
 app.use(cors());
@@ -76,18 +136,123 @@ app.get('/api/categories', (req, res) => {
   });
 });
 
-app.post('/api/resources', (req, res) => {
-  console.log('Resource submission:', req.body);
-  res.status(201).json({
-    success: true,
-    message: 'Ressource modtaget! Den vil blive gennemgået før publicering.',
-    data: {
-      id: Date.now(),
-      ...req.body,
-      status: 'pending',
-      created_at: new Date().toISOString()
+// Input validation middleware
+const validateResourceSubmission = [
+  body('title')
+    .trim()
+    .isLength({ min: 5, max: 255 })
+    .withMessage('Titel skal være mellem 5 og 255 tegn')
+    .escape(),
+  body('description')
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage('Beskrivelse må højst være 2000 tegn')
+    .escape(),
+  body('url')
+    .isURL({ require_protocol: true })
+    .withMessage('URL er ikke gyldig')
+    .custom(value => {
+      const blockedDomains = ['malware.com', 'phishing.com', 'spam.com'];
+      try {
+        const domain = new URL(value).hostname.toLowerCase();
+        if (blockedDomains.some(blocked => domain.includes(blocked))) {
+          throw new Error('Dette domæne er ikke tilladt');
+        }
+      } catch (e) {
+        throw new Error('Ugyldig URL');
+      }
+      return true;
+    }),
+  body('type')
+    .isIn(['link', 'article', 'podcast', 'book', 'video', 'movie', 'tv_series', 'tip'])
+    .withMessage('Ugyldig ressource type'),
+  body('submitter_email')
+    .optional()
+    .isEmail()
+    .withMessage('Email adresse er ikke gyldig')
+    .normalizeEmail(),
+  body('tags')
+    .optional()
+    .custom(value => {
+      if (Array.isArray(value)) {
+        if (value.length > 10) {
+          throw new Error('Maksimalt 10 tags tilladt');
+        }
+        return value.every(tag => typeof tag === 'string' && tag.length <= 50);
+      } else if (typeof value === 'string') {
+        const tags = value.split(',').map(t => t.trim());
+        if (tags.length > 10) {
+          throw new Error('Maksimalt 10 tags tilladt');
+        }
+        return tags.every(tag => tag.length <= 50);
+      }
+      return true;
+    }),
+];
+
+app.post('/api/resources', submitLimiter, validateResourceSubmission, (req, res) => {
+  try {
+    // Check validation results
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: errors.array()[0].msg,
+        details: errors.array()
+      });
     }
-  });
+
+    const { title, description, url, type, submitter_email, tags } = req.body;
+    
+    // Sanitize HTML content
+    const sanitizedTitle = purify.sanitize(title.trim());
+    const sanitizedDescription = purify.sanitize(description.trim());
+    
+    // Process tags
+    let processedTags = [];
+    if (Array.isArray(tags)) {
+      processedTags = tags.filter(tag => tag && tag.trim().length > 0).map(tag => tag.trim().toLowerCase());
+    } else if (typeof tags === 'string' && tags.trim().length > 0) {
+      processedTags = tags.split(',').filter(tag => tag && tag.trim().length > 0).map(tag => tag.trim().toLowerCase());
+    }
+    
+    const newResource = {
+      id: uuidv4(),
+      title: sanitizedTitle,
+      description: sanitizedDescription,
+      url: url.trim(),
+      type: type.trim(),
+      submitter_email: submitter_email ? submitter_email.trim() : null,
+      tags: processedTags,
+      status: 'pending',
+      votes: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    // Secure logging - don't log sensitive data
+    console.log('New resource submission:', {
+      id: newResource.id,
+      title: newResource.title.substring(0, 50) + '...',
+      type: newResource.type,
+      url_domain: new URL(newResource.url).hostname,
+      tags_count: newResource.tags.length,
+      has_email: !!newResource.submitter_email,
+      timestamp: newResource.created_at
+    });
+    
+    res.status(201).json({
+      success: true,
+      message: 'Ressource modtaget! Den vil blive gennemgået før publicering.',
+      data: newResource
+    });
+  } catch (error) {
+    console.error('Error processing resource submission:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Der opstod en fejl ved behandling af din indsendelse. Prøv igen senere.'
+    });
+  }
 });
 
 // Serve static frontend files
