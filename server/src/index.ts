@@ -8,7 +8,10 @@ import path from 'path'
 dotenv.config()
 
 const app = express()
+// Use PORT from environment (for Railway/Render) or default to 3001 for development
 const PORT = parseInt(process.env.PORT || '3001')
+// Bind to all interfaces for deployment compatibility
+const HOST = '0.0.0.0'
 
 console.log('🚀 Initializing Farlandet server...')
 console.log(`📍 PORT: ${PORT}`)
@@ -73,17 +76,33 @@ app.get('/api/health', async (req, res) => {
   }
 })
 
-// Try to load API routes with error handling
+// Load API routes with proper error handling
 try {
-  const resourceRoutes = require('./routes/resources').default
-  const categoryRoutes = require('./routes/categories').default
-  const authRoutes = require('./routes/auth').default
-  const adminRoutes = require('./routes/admin').default
+  // Use require for CommonJS compatibility in compiled JS
+  const resourceRoutes = require('./routes/resources').default || require('./routes/resources')
+  const categoryRoutes = require('./routes/categories').default || require('./routes/categories')
+  const authRoutes = require('./routes/auth').default || require('./routes/auth')
+  const adminRoutes = require('./routes/admin').default || require('./routes/admin')
   
-  app.use('/api/resources', resourceRoutes)
-  app.use('/api/categories', categoryRoutes)
-  app.use('/api/auth', authRoutes)
-  app.use('/api/admin', adminRoutes)
+  if (resourceRoutes) {
+    app.use('/api/resources', resourceRoutes)
+    console.log('✅ Resources routes loaded')
+  }
+  
+  if (categoryRoutes) {
+    app.use('/api/categories', categoryRoutes)
+    console.log('✅ Categories routes loaded')
+  }
+  
+  if (authRoutes) {
+    app.use('/api/auth', authRoutes)
+    console.log('✅ Auth routes loaded')
+  }
+  
+  if (adminRoutes) {
+    app.use('/api/admin', adminRoutes)
+    console.log('✅ Admin routes loaded')
+  }
   
   console.log('✅ API routes loaded successfully')
 } catch (error) {
@@ -94,26 +113,43 @@ try {
 // Serve static frontend files in production
 if (process.env.NODE_ENV === 'production') {
   const frontendDistPath = path.join(__dirname, '../../dist')
-  app.use(express.static(frontendDistPath))
+  
+  // Serve static files but NOT for API routes
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      next() // Skip static file serving for API routes
+    } else {
+      express.static(frontendDistPath)(req, res, next)
+    }
+  })
   
   // Handle client-side routing - serve index.html for all non-API routes
   app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(frontendDistPath, 'index.html'))
-    } else {
+    if (req.path.startsWith('/api/')) {
       res.status(404).json({
         success: false,
-        error: 'API endpoint not found'
+        error: 'API endpoint not found',
+        path: req.path
       })
+    } else {
+      res.sendFile(path.join(frontendDistPath, 'index.html'))
     }
   })
 } else {
   // 404 handler for development (when frontend runs separately)
   app.use('*', (req, res) => {
-    res.status(404).json({
-      success: false,
-      error: 'Endpoint not found'
-    })
+    if (req.path.startsWith('/api/')) {
+      res.status(404).json({
+        success: false,
+        error: 'API endpoint not found',
+        path: req.path
+      })
+    } else {
+      res.status(404).json({
+        success: false,
+        error: 'Endpoint not found - frontend should run separately in development'
+      })
+    }
   })
 }
 
@@ -131,13 +167,21 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 async function startServer() {
   console.log('🚀 Starting Farlandet server...')
   
-  // Start the server first - this is critical
-  const server = app.listen(PORT, '0.0.0.0', () => {
+  // Start the server first - this is critical for deployment
+  const server = app.listen(PORT, HOST, () => {
     console.log('🎉 Farlandet server is running!')
-    console.log(`📍 Server listening on: 0.0.0.0:${PORT}`)
+    console.log(`📍 Server listening on: ${HOST}:${PORT}`)
     console.log(`📊 Test endpoint: /api/ping`)
     console.log(`📊 Health check: /api/health`)
     console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`)
+    
+    // Log important URLs for debugging
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🌐 Production mode: Serving frontend from /dist')
+      console.log('📡 API endpoints available at /api/*')
+    } else {
+      console.log('🛠️  Development mode: Frontend should run separately')
+    }
   })
   
   // Handle server errors
@@ -210,16 +254,20 @@ async function main() {
   }
 }
 
-// Add uncaught exception handling
+// Add uncaught exception handling with more graceful handling
 process.on('uncaughtException', (error) => {
   console.error('💥 Uncaught Exception:', error)
   console.error('🔍 Stack trace:', error.stack)
-  process.exit(1)
+  // Give some time for cleanup before exiting
+  setTimeout(() => process.exit(1), 100)
 })
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason)
-  process.exit(1)
+  // Don't exit on unhandled rejections in production to maintain uptime
+  if (process.env.NODE_ENV !== 'production') {
+    setTimeout(() => process.exit(1), 100)
+  }
 })
 
 // Start the server

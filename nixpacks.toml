@@ -12,4 +12,5 @@ cmds = ["npm ci", "cd server && npm ci"]
 cmds = ["npm run build:prod", "cd server && npm run build"]
 
 [start]
-cmd = "cd server && npm start"
+# Use the production startup script for reliable deployment
+cmd = "npm start"
