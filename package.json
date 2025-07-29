@@ -2,6 +2,7 @@
   "name": "farlandet",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "scripts": {
     "dev": "concurrently \"vite\" \"nodemon server.js\"",
     "build": "vite build",
@@ -24,7 +25,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.60.0",
-    "react-router-dom": "^7.7.0",
+    "react-router-dom": "^6.28.0",
     "tailwind-merge": "^3.3.1",
     "zod": "^4.0.5",
     "zustand": "^5.0.6"
@@ -54,7 +55,7 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.35.1",
-    "vite": "^7.0.4",
+    "vite": "^5.4.2",
     "vitest": "^3.2.4"
   }
 }
