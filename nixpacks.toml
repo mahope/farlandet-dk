@@ -1,16 +1,14 @@
-# Nixpacks configuration for Farlandet.dk
+# Simple Nixpacks configuration for Farlandet.dk
 providers = ["node"]
 
 [variables]
 NODE_ENV = "production"
-NIXPACKS_NODE_VERSION = "20"
 
 [phases.install]
-cmds = ["npm ci", "cd server && npm ci"]
+cmds = ["npm install"]
 
 [phases.build]
-cmds = ["npm run build:prod", "cd server && npm run build"]
+cmds = ["npm run build"]
 
 [start]
-# Use the production startup script for reliable deployment
-cmd = "npm start"
+cmd = "node server.js"

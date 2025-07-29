@@ -1,48 +1,34 @@
-# Use Node.js 20 LTS
-FROM node:20-alpine AS builder
+# Simple Dockerfile for Farlandet.dk
+FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files for both frontend and backend
+# Copy package files
 COPY package*.json ./
-COPY server/package*.json ./server/
 
 # Install dependencies
-RUN npm ci --only=production=false
-RUN cd server && npm ci --only=production=false
+RUN npm install
 
-# Copy source code
+# Copy all source code
 COPY . .
 
-# Build both frontend and backend
-RUN npm run build:prod
-RUN cd server && npm run build
+# Build the frontend
+RUN npm run build
 
-# Production stage
-FROM node:20-alpine AS runner
+# Expose port
+EXPOSE 3000
 
-# Set working directory
-WORKDIR /app
-
-# Copy built application from builder stage
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/server/dist ./server/dist
-COPY --from=builder /app/server/node_modules ./server/node_modules
-COPY --from=builder /app/server/package.json ./server/package.json
-COPY --from=builder /app/start-production.js ./
-COPY --from=builder /app/health-check.js ./
-COPY --from=builder /app/package.json ./
-
-# Set environment variables
-ENV NODE_ENV=production
-
-# Expose port (use PORT env var or default to 3001)
-EXPOSE ${PORT:-3001}
-
-# Add health check
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node health-check.js
+  CMD node -e "const http = require('http'); \
+  const options = { hostname: 'localhost', port: process.env.PORT || 3000, path: '/api/ping', timeout: 5000 }; \
+  const req = http.request(options, (res) => { \
+    process.exit(res.statusCode === 200 ? 0 : 1); \
+  }); \
+  req.on('error', () => process.exit(1)); \
+  req.on('timeout', () => process.exit(1)); \
+  req.end();"
 
-# Start the application using the production script
-CMD ["node", "start-production.js"]
+# Start the server
+CMD ["node", "server.js"]
