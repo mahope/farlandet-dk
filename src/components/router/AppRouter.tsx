@@ -8,6 +8,7 @@ import { PrivacyPage } from '../../pages/PrivacyPage'
 import { ContactPage } from '../../pages/ContactPage'
 import { SupportPage } from '../../pages/SupportPage'
 import { LoginPage } from '../../pages/LoginPage'
+import { AdminPage } from '../../pages/AdminPage'
 
 function NotFound() {
   return (
@@ -32,7 +33,7 @@ export function AppRouter() {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/support" element={<SupportPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/admin" element={<NotFound />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Layout>

@@ -1,4 +1,5 @@
 import { AuthProvider } from './contexts/PocketBaseAuthContext'
+import { AdminAuthProvider } from './contexts/AdminAuthContext'
 import { AppRouter } from './components/router/AppRouter'
 import { ErrorBoundary } from './components/ui/error-boundary'
 
@@ -6,7 +7,9 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <AppRouter />
+        <AdminAuthProvider>
+          <AppRouter />
+        </AdminAuthProvider>
       </AuthProvider>
     </ErrorBoundary>
   )

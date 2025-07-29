@@ -1,206 +1,147 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/button'
-import { useSEO } from '../hooks/useSEO'
-import { PocketBaseAPI } from '../lib/pocketbase'
-import { LoadingSpinner } from '../components/ui/loading-spinner'
-import type { ResourceWithRelations } from '../types/pocketbase'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { ArrowRight, Heart, Users, BookOpen, Star } from 'lucide-react'
+import { useCategories } from '../hooks/useCategories'
+import { useResources } from '../hooks/useResources'
 
 export function HomePage() {
-  const [allResources, setAllResources] = useState<ResourceWithRelations[]>([])
-  const [filteredResources, setFilteredResources] = useState<ResourceWithRelations[]>([])
-  const [loadingResources, setLoadingResources] = useState(true)
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('')
+  const { categories, loading: categoriesLoading } = useCategories()
+  const { resources } = useResources('approved')
 
-  // Quick resource type filters for homepage
-  const quickFilters = [
-    { value: '', label: 'Alle', icon: '📋' },
-    { value: 'podcast', label: 'Podcasts', icon: '🎧' },
-    { value: 'article', label: 'Artikler', icon: '📰' },
-    { value: 'video', label: 'Videoer', icon: '🎥' },
-    { value: 'book', label: 'Bøger', icon: '📚' },
-    { value: 'tip', label: 'Tips', icon: '💡' }
+  const featuredStats = [
+    { icon: Users, label: 'Aktive fædre', value: '1.2k+' },
+    { icon: BookOpen, label: 'Ressourcer delt', value: resources.length.toString() },
+    { icon: Heart, label: 'Hjælpsomme svar', value: '2.3k+' },
+    { icon: Star, label: 'Bedømmelser', value: '4.8/5' },
   ]
 
-  useSEO({
-    title: 'Farlandet.dk - Danmarks fællesskab for fædre og ressourcer',
-    description: 'Danmarks førende fællesskab for fædre. Del og find værdifulde ressourcer, podcasts, artikler, tips og meget mere. Bliv en del af vores støttende netværk af danske fædre.',
-    keywords: ['danske fædre', 'forældreskab', 'fædres fællesskab', 'ressourcer til fædre', 'dansk familieliv', 'far tips', 'forældreskab danmark'],
-    url: 'https://farlandet.dk/',
-    type: 'website'
-  })
-
-  // Fetch all resources
-  useEffect(() => {
-    async function fetchAllResources() {
-      try {
-        setLoadingResources(true)
-        
-        console.log('🔄 Fetching resources from PocketBase...')
-        
-        // Get all approved resources with expanded relations
-        const result = await PocketBaseAPI.getApprovedResources(1, 200, 'category,submitter')
-        
-        if (result.items && result.items.length > 0) {
-          console.log(`✅ PocketBase loaded ${result.items.length} resources successfully`)
-          
-          // Transform PocketBase data to match our component expectations
-          const transformedResources: ResourceWithRelations[] = result.items.map(resource => ({
-            ...resource,
-            category: resource.expand?.category,
-            submitter: resource.expand?.submitter,
-            tags: [], // Will be populated separately if needed
-          }))
-          
-          setAllResources(transformedResources)
-          setFilteredResources(transformedResources)
-        } else {
-          console.warn('⚠️ PocketBase returned empty result')
-          setAllResources([])
-          setFilteredResources([])
-        }
-      } catch (error) {
-        console.error('❌ PocketBase error fetching resources:', error)
-        setAllResources([])
-        setFilteredResources([])
-      } finally {
-        setLoadingResources(false)
-      }
-    }
-
-    fetchAllResources()
-  }, [])
-
-  // Filter resources by type
-  useEffect(() => {
-    if (selectedTypeFilter) {
-      const filtered = allResources.filter(resource => resource.resource_type === selectedTypeFilter)
-      setFilteredResources(filtered)
-    } else {
-      setFilteredResources(allResources)
-    }
-  }, [allResources, selectedTypeFilter])
-
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold mb-4">
-          Velkommen til Farlandet.dk
-        </h1>
-        <p className="text-lg text-muted-foreground">
-          Danmarks førende fællesskab hvor fædre deler ressourcer, tips og erfaringer
-        </p>
-      </div>
-
-      {/* All Resources Section */}
-      <div className="mt-16">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold mb-2">Alle Ressourcer</h2>
-          <p className="text-muted-foreground mb-6">
-            Udforsk alle ressourcer fra vores fællesskab af danske fædre
+    <div className="min-h-screen">
+      {/* Hero Section */}
+      <section className="bg-gradient-to-br from-blue-50 to-indigo-100 py-20">
+        <div className="container mx-auto px-4 text-center">
+          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
+            Velkommen til{' '}
+            <span className="text-blue-600">Farlandet</span>
+          </h1>
+          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+            Det danske fællesskab hvor fædre deler viden, ressourcer og erfaringer. 
+            Find inspiration til forældreskab, aktiviteter og meget mere.
           </p>
-          
-          {/* Quick filters */}
-          <div className="flex flex-wrap justify-center gap-2 mb-4">
-            {quickFilters.map(filter => (
-              <Button
-                key={filter.value}
-                variant={selectedTypeFilter === filter.value ? 'default' : 'outline'}
-                onClick={() => setSelectedTypeFilter(filter.value)}
-                size="sm"
-                className="text-sm"
-              >
-                {filter.icon} {filter.label}
-              </Button>
+          <div className="flex gap-4 justify-center flex-wrap">
+            <Button asChild size="lg">
+              <Link to="/categories">
+                Udforsk ressourcer <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link to="/submit">Bidrag med indhold</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-16 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {featuredStats.map((stat, index) => (
+              <div key={index} className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mb-4">
+                  <stat.icon className="h-6 w-6 text-blue-600" />
+                </div>
+                <div className="text-3xl font-bold text-gray-900 mb-1">{stat.value}</div>
+                <div className="text-gray-600">{stat.label}</div>
+              </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Categories Section */}
+      <section className="py-16 bg-gray-50">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
+            Populære kategorier
+          </h2>
           
-          {selectedTypeFilter && (
-            <p className="text-sm text-muted-foreground">
-              Viser {filteredResources.length} {quickFilters.find(f => f.value === selectedTypeFilter)?.label.toLowerCase()} ressourcer
-            </p>
+          {categoriesLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardHeader>
+                    <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-full"></div>
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {categories.slice(0, 6).map((category) => (
+                <Card key={category.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      {category.name}
+                      <ArrowRight className="h-4 w-4 text-gray-400" />
+                    </CardTitle>
+                    <CardDescription>{category.description}</CardDescription>
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
           )}
         </div>
+      </section>
 
-        {loadingResources ? (
-          <div className="text-center py-8">
-            <LoadingSpinner size="lg" text="Henter ressourcer..." />
-          </div>
-        ) : filteredResources.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {filteredResources.map((resource) => (
-              <Link 
-                key={resource.id} 
-                to={`/resource/${resource.id}`}
-                className="border rounded-lg p-6 bg-card hover:shadow-lg transition-shadow cursor-pointer block"
-              >
-                <div className="mb-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-2xl">
-                      {resource.resource_type === 'podcast' && '🎧'}
-                      {resource.resource_type === 'article' && '📰'}
-                      {resource.resource_type === 'book' && '📚'}
-                      {resource.resource_type === 'video' && '🎥'}
-                      {resource.resource_type === 'tip' && '💡'}
-                      {resource.resource_type === 'pdf' && '📄'}
-                      {resource.resource_type === 'link' && '🔗'}
-                      {resource.resource_type === 'movie' && '🍿'}
-                      {resource.resource_type === 'tv_series' && '📺'}
-                    </span>
-                    {resource.category && typeof resource.category === 'object' && (
-                      <span 
-                        className="px-2 py-1 text-xs rounded-full text-white"
-                        style={{ backgroundColor: resource.category.color }}
-                      >
-                        {resource.category.name}
-                      </span>
-                    )}
-                    {resource.category && typeof resource.category === 'string' && (
-                      <span className="px-2 py-1 text-xs rounded-full bg-gray-500 text-white">
-                        {resource.category}
-                      </span>
-                    )}
+      {/* Featured Resources Section */}
+      <section className="py-16 bg-white">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
+            Seneste ressourcer
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {resources.slice(0, 6).map((resource) => (
+              <Card key={resource.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="line-clamp-2">{resource.title}</CardTitle>
+                  <CardDescription className="line-clamp-3">
+                    {resource.description}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between text-sm text-gray-500">
+                    <span>{resource.category?.name}</span>
+                    <span>{resource.votes} votes</span>
                   </div>
-                  <h3 className="font-semibold text-lg mb-2 line-clamp-2">
-                    {resource.title}
-                  </h3>
-                  {resource.description && (
-                    <p className="text-muted-foreground text-sm line-clamp-3">
-                      {resource.description}
-                    </p>
-                  )}
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {resource.vote_score > 0 && (
-                      <span className="text-sm text-green-600 font-medium">
-                        +{resource.vote_score}
-                      </span>
-                    )}
-                    {resource.tags && resource.tags.length > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        {resource.tags.slice(0, 2).map((tag: any) => tag.name).join(', ')}
-                        {resource.tags.length > 2 && '...'}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(resource.created).toLocaleDateString('da-DK')}
-                  </span>
-                </div>
-              </Link>
+                </CardContent>
+              </Card>
             ))}
           </div>
-        ) : (
-          <div className="text-center py-8 border-2 border-dashed border-muted rounded-lg">
-            <p className="text-muted-foreground mb-4">
-              Ingen ressourcer fundet. Prøv en anden filter eller kom tilbage senere.
-            </p>
+          
+          <div className="text-center mt-8">
+            <Button asChild variant="outline">
+              <Link to="/categories">Se alle ressourcer</Link>
+            </Button>
           </div>
-        )}
-      </div>
+        </div>
+      </section>
 
+      {/* CTA Section */}
+      <section className="py-16 bg-blue-600 text-white">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold mb-4">Klar til at komme i gang?</h2>
+          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+            Bliv en del af Danmarks mest hjælpsomme far-fællesskab. Del dine erfaringer og lær af andre.
+          </p>
+          <Button asChild size="lg" variant="secondary">
+            <Link to="/submit">Del din første ressource</Link>
+          </Button>
+        </div>
+      </section>
     </div>
   )
 }
