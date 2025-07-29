@@ -4,28 +4,34 @@ import helmet from 'helmet'
 import dotenv from 'dotenv'
 import path from 'path'
 
-import resourceRoutes from './routes/resources'
-import categoryRoutes from './routes/categories'
-import authRoutes from './routes/auth'
-import adminRoutes from './routes/admin'
-import { testDatabaseConnection, isDatabaseInitialized } from './config/database'
-import { seedDatabase, isDatabaseSeeded } from './scripts/seed-db'
-import { initializeDatabase } from './scripts/init-db'
-
-// Load environment variables
+// Load environment variables first
 dotenv.config()
 
 const app = express()
-const PORT = process.env.PORT || 3001
+const PORT = parseInt(process.env.PORT || '3001')
 
-// Middleware
-app.use(helmet())
+console.log('🚀 Initializing Farlandet server...')
+console.log(`📍 PORT: ${PORT}`)
+console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV || 'development'}`)
+
+// Basic middleware
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for now to avoid frontend issues
+}))
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: true, // Allow all origins for now
   credentials: true
 }))
+
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
+
+// Add request logging
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} ${req.method} ${req.path}`)
+  next()
+})
 
 // Simple ping endpoint (always works)
 app.get('/api/ping', (req, res) => {
@@ -40,6 +46,10 @@ app.get('/api/ping', (req, res) => {
 // Health check endpoint (includes database status)
 app.get('/api/health', async (req, res) => {
   try {
+    // Dynamic import to avoid dependency issues
+    const { testDatabaseConnection, isDatabaseInitialized } = await import('./config/database')
+    const { isDatabaseSeeded } = await import('./scripts/seed-db')
+    
     const dbConnected = await testDatabaseConnection(1)
     const dbInitialized = await isDatabaseInitialized()
     const dbSeeded = await isDatabaseSeeded()
@@ -63,11 +73,23 @@ app.get('/api/health', async (req, res) => {
   }
 })
 
-// API routes
-app.use('/api/resources', resourceRoutes)
-app.use('/api/categories', categoryRoutes)
-app.use('/api/auth', authRoutes)
-app.use('/api/admin', adminRoutes)
+// Try to load API routes with error handling
+try {
+  const resourceRoutes = require('./routes/resources').default
+  const categoryRoutes = require('./routes/categories').default
+  const authRoutes = require('./routes/auth').default
+  const adminRoutes = require('./routes/admin').default
+  
+  app.use('/api/resources', resourceRoutes)
+  app.use('/api/categories', categoryRoutes)
+  app.use('/api/auth', authRoutes)
+  app.use('/api/admin', adminRoutes)
+  
+  console.log('✅ API routes loaded successfully')
+} catch (error) {
+  console.warn('⚠️  API routes failed to load:', error.message)
+  console.warn('📝 API endpoints may not work until this is fixed')
+}
 
 // Serve static frontend files in production
 if (process.env.NODE_ENV === 'production') {
@@ -107,52 +129,63 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Database setup and server start
 async function startServer() {
-  console.log('🚀 Starting Farlandet API server...')
+  console.log('🚀 Starting Farlandet server...')
   
-  // Always start the server first
-  app.listen(PORT, () => {
+  // Start the server first - this is critical
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log('🎉 Farlandet server is running!')
-    console.log(`📍 Server running on port: ${PORT}`)
+    console.log(`📍 Server listening on: 0.0.0.0:${PORT}`)
+    console.log(`📊 Test endpoint: /api/ping`)
     console.log(`📊 Health check: /api/health`)
-    console.log(`🌐 Frontend: ${process.env.NODE_ENV === 'production' ? 'served at /' : 'run separately on port 5173'}`)
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`)
   })
   
-  // Try database setup in background (non-blocking)
-  try {
-    console.log('🔍 Testing database connection...')
-    const connected = await testDatabaseConnection()
-    
-    if (!connected) {
-      console.warn('⚠️  Database not available. API endpoints will return errors until database is configured.')
-      return
+  // Handle server errors
+  server.on('error', (error: any) => {
+    console.error('❌ Server error:', error)
+    if (error.code === 'EADDRINUSE') {
+      console.error(`💥 Port ${PORT} is already in use`)
     }
-    
-    console.log('✅ Database connected successfully!')
-    
-    // Check if database is initialized
-    const initialized = await isDatabaseInitialized()
-    if (!initialized) {
-      console.log('⚡ Database not initialized. Setting up schema...')
-      await initializeDatabase(false)
-      console.log('✅ Database schema created successfully!')
+  })
+  
+  // Try database setup in background (completely non-blocking)
+  setImmediate(async () => {
+    try {
+      console.log('🔍 Starting database setup in background...')
+      
+      // Import database functions only when needed
+      const { testDatabaseConnection, isDatabaseInitialized } = await import('./config/database')
+      const { seedDatabase, isDatabaseSeeded } = await import('./scripts/seed-db')
+      const { initializeDatabase } = await import('./scripts/init-db')
+      
+      const connected = await testDatabaseConnection(1)
+      
+      if (!connected) {
+        console.warn('⚠️  Database not available. Server running without database.')
+        return
+      }
+      
+      console.log('✅ Database connected successfully!')
+      
+      const initialized = await isDatabaseInitialized()
+      if (!initialized) {
+        console.log('⚡ Setting up database schema...')
+        await initializeDatabase(false)
+      }
+      
+      const seeded = await isDatabaseSeeded()
+      if (!seeded) {
+        console.log('🌱 Adding initial data...')
+        await seedDatabase(false)
+      }
+      
+      console.log('🎯 Database setup complete!')
+      
+    } catch (error: any) {
+      console.warn('⚠️  Database setup failed:', error.message)
+      console.warn('💡 Server running without database functionality')
     }
-    
-    // Check if database is seeded
-    const seeded = await isDatabaseSeeded()
-    if (!seeded) {
-      console.log('🌱 Database empty. Adding initial data...')
-      await seedDatabase(false)
-      console.log('✅ Database seeded successfully!')
-    }
-    
-    console.log('🎯 Database setup complete! All API endpoints are ready.')
-    
-  } catch (error: any) {
-    console.warn('⚠️  Database setup failed:', error.message)
-    console.warn('💡 Server is running but API endpoints may not work without database.')
-    console.warn('   - Set DATABASE_URL environment variable')
-    console.warn('   - Or configure individual DB_* variables')
-  }
+  })
 }
 
 // Handle graceful shutdown
@@ -166,7 +199,30 @@ process.on('SIGTERM', () => {
   process.exit(0)
 })
 
+// Start the server with error handling
+async function main() {
+  try {
+    await startServer()
+  } catch (error) {
+    console.error('💥 Fatal error starting server:', error)
+    console.error('🔍 Stack trace:', error.stack)
+    process.exit(1)
+  }
+}
+
+// Add uncaught exception handling
+process.on('uncaughtException', (error) => {
+  console.error('💥 Uncaught Exception:', error)
+  console.error('🔍 Stack trace:', error.stack)
+  process.exit(1)
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason)
+  process.exit(1)
+})
+
 // Start the server
-startServer()
+main()
 
 export default app
