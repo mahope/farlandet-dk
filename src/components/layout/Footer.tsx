@@ -116,11 +116,11 @@ export function Footer({ className }: FooterProps) {
                   <Mail className="h-4 w-4" />
                 </a>
                 <a
-                  href="https://github.com/mahope/farlandet-dk"
+                  href="https://mahope.dk"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-muted-foreground hover:text-primary transition-colors duration-200"
-                  title="Se kildekoden på GitHub"
+                  title="Besøg Mahope.dk"
                 >
                   <Github className="h-4 w-4" />
                 </a>

@@ -65,13 +65,13 @@ export function HomePage() {
 
             {/* CTA Buttons */}
             <div className="flex gap-4 justify-center flex-wrap mb-16">
-              <Button asChild size="lg" className="btn-primary group">
+              <Button asChild size="lg" className="group">
                 <Link to="/categories">
                   Udforsk ressourcer 
                   <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="lg" className="border-2 hover:bg-accent">
+              <Button asChild variant="outline" size="lg">
                 <Link to="/submit">
                   <Sparkles className="mr-2 h-4 w-4" />
                   Bidrag med indhold
@@ -212,7 +212,7 @@ export function HomePage() {
           </div>
           
           <div className="text-center">
-            <Button asChild variant="outline" size="lg" className="border-2 hover:bg-accent">
+            <Button asChild variant="outline" size="lg">
               <Link to="/categories">
                 Se alle ressourcer
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -236,13 +236,13 @@ export function HomePage() {
               Bliv en del af Danmarks mest hjælpsomme far-fællesskab. Del dine erfaringer og lær af andre.
             </p>
             <div className="flex gap-4 justify-center flex-wrap">
-              <Button asChild size="lg" variant="secondary" className="bg-white text-primary-700 hover:bg-primary-50 shadow-lg hover:shadow-xl transition-all duration-200">
+              <Button asChild size="lg" variant="secondary" className="bg-white text-primary-700 hover:bg-primary-50 shadow-lg hover:shadow-xl">
                 <Link to="/submit">
                   <Sparkles className="mr-2 h-4 w-4" />
                   Del din første ressource
                 </Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+              <Button asChild size="lg" variant="outline" className="border-2 border-white text-white hover:bg-white/10">
                 <Link to="/categories">
                   Udforsk kategorier
                 </Link>

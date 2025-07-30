@@ -387,7 +387,7 @@ export function SubmitResourcePage() {
                 {/* Submit Button */}
                 <Button 
                   type="submit" 
-                  className="w-full btn-primary group" 
+                  className="w-full group" 
                   disabled={isSubmitting}
                   size="lg"
                 >
