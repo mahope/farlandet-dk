@@ -117,11 +117,6 @@ export function AdminLoginForm() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500">
-              Standard login: admin@farlandet.dk / admin123
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>

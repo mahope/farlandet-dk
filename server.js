@@ -22,6 +22,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-very-secure-jwt-secret-change-in-production';
 
+// In-memory storage for development (in production, use database)
+let resources = [];
+let resourceIdCounter = 1;
+
 // Mock admin users (in production, this would be in a database)
 const adminUsers = [
   {
@@ -260,30 +264,34 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
 
 // Admin Dashboard and Management Endpoints
 app.get('/api/admin/dashboard', authenticateToken, (req, res) => {
-  // Mock dashboard data
+  // Calculate real statistics from stored resources
+  const pending = resources.filter(r => r.status === 'pending').length;
+  const approved = resources.filter(r => r.status === 'approved').length;
+  const rejected = resources.filter(r => r.status === 'rejected').length;
+  const total = resources.length;
+  
+  // Get unique tags count
+  const allTags = resources.flatMap(r => r.tags || []);
+  const uniqueTags = [...new Set(allTags)];
+  
+  // Get recent resources (last 5)
+  const recentResources = resources
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5);
+
   res.json({
     success: true,
     data: {
       stats: {
-        pending: 5,
-        approved: 23,
-        rejected: 2,
-        total: 30,
-        categories: 8,
-        tags: 45,
+        pending,
+        approved,
+        rejected,
+        total,
+        categories: 8, // Static for now
+        tags: uniqueTags.length,
         admins: 1
       },
-      recentResources: [
-        {
-          id: 1,
-          title: "Faderrolle og mental sundhed",
-          description: "En guide til at håndtere stress som ny far",
-          type: "article",
-          status: "pending",
-          votes: 0,
-          created_at: new Date().toISOString()
-        }
-      ]
+      recentResources
     }
   });
 });
@@ -291,40 +299,25 @@ app.get('/api/admin/dashboard', authenticateToken, (req, res) => {
 app.get('/api/admin/resources', authenticateToken, (req, res) => {
   const { status = 'all', limit = 20, offset = 0 } = req.query;
   
-  // Mock resources data
-  const mockResources = [
-    {
-      id: 1,
-      title: "Faderrolle og mental sundhed",
-      description: "En guide til at håndtere stress som ny far",
-      url: "https://example.com/article1",
-      type: "article",
-      status: "pending",
-      votes: 0,
-      submitted_by: "anonymous",
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 2,
-      title: "Podcast om forældreskab",
-      description: "Inspirerende samtaler med danske fædre",
-      url: "https://example.com/podcast1",
-      type: "podcast",
-      status: "approved",
-      votes: 15,
-      submitted_by: "test@example.com",
-      created_at: new Date(Date.now() - 86400000).toISOString()
-    }
-  ];
-
-  let filteredResources = mockResources;
+  // Filter resources by status
+  let filteredResources = resources;
   if (status !== 'all') {
-    filteredResources = mockResources.filter(r => r.status === status);
+    filteredResources = resources.filter(r => r.status === status);
   }
+
+  // Sort by creation date (newest first)
+  filteredResources = filteredResources.sort((a, b) => 
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  // Apply pagination
+  const startIndex = parseInt(offset);
+  const endIndex = startIndex + parseInt(limit);
+  const paginatedResources = filteredResources.slice(startIndex, endIndex);
 
   res.json({
     success: true,
-    data: filteredResources.slice(parseInt(offset), parseInt(offset) + parseInt(limit)),
+    data: paginatedResources,
     meta: {
       total: filteredResources.length,
       limit: parseInt(limit),
@@ -344,25 +337,48 @@ app.put('/api/admin/resources/:id/moderate', authenticateToken, (req, res) => {
     });
   }
 
-  // Mock resource update
-  console.log(`Admin ${req.user.email} ${status} resource ${id}`);
+  // Find and update the resource
+  const resourceIndex = resources.findIndex(r => r.id === id);
+  if (resourceIndex === -1) {
+    return res.status(404).json({
+      success: false,
+      error: 'Ressource ikke fundet'
+    });
+  }
+
+  // Update resource status
+  resources[resourceIndex] = {
+    ...resources[resourceIndex],
+    status: status,
+    approved_by: req.user.email,
+    approved_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  console.log(`Admin ${req.user.email} ${status} resource ${id}: "${resources[resourceIndex].title}"`);
   
   res.json({
     success: true,
-    data: {
-      id: parseInt(id),
-      title: "Updated Resource",
-      status: status,
-      approved_by: req.user.email,
-      approved_at: new Date().toISOString()
-    }
+    data: resources[resourceIndex]
   });
 });
 
 app.delete('/api/admin/resources/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
   
-  console.log(`Admin ${req.user.email} deleted resource ${id}`);
+  // Find and remove the resource
+  const resourceIndex = resources.findIndex(r => r.id === id);
+  if (resourceIndex === -1) {
+    return res.status(404).json({
+      success: false,
+      error: 'Ressource ikke fundet'
+    });
+  }
+
+  const deletedResource = resources[resourceIndex];
+  resources.splice(resourceIndex, 1);
+  
+  console.log(`Admin ${req.user.email} deleted resource ${id}: "${deletedResource.title}"`);
   
   res.json({
     success: true,
@@ -370,23 +386,21 @@ app.delete('/api/admin/resources/:id', authenticateToken, (req, res) => {
   });
 });
 
-// Simple API endpoints (mock data for now)
+// Public API endpoints
 app.get('/api/resources', (req, res) => {
+  // Only return approved resources for public consumption
+  const approvedResources = resources.filter(r => r.status === 'approved');
+  
+  // Sort by creation date (newest first)
+  const sortedResources = approvedResources.sort((a, b) => 
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
   res.json({
     success: true,
-    data: [
-      {
-        id: 1,
-        title: "Eksempel ressource",
-        description: "Dette er en test ressource",
-        type: "link",
-        url: "https://example.com",
-        status: "approved",
-        created_at: new Date().toISOString()
-      }
-    ],
+    data: sortedResources,
     meta: {
-      total: 1,
+      total: sortedResources.length,
       page: 1
     }
   });
@@ -514,18 +528,22 @@ app.post('/api/resources', submitLimiter, validateResourceSubmission, (req, res)
     }
     
     const newResource = {
-      id: uuidv4(),
+      id: resourceIdCounter++,
       title: sanitizedTitle,
       description: sanitizedDescription,
       url: url.trim(),
       type: type.trim(),
       submitter_email: submitter_email ? submitter_email.trim() : null,
+      submitted_by: submitter_email ? submitter_email.trim() : 'anonymous',
       tags: processedTags,
       status: 'pending',
       votes: 0,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+    
+    // Store resource in memory array
+    resources.push(newResource);
     
     // Secure logging - don't log sensitive data
     console.log('New resource submission:', {
