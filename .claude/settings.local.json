@@ -22,7 +22,9 @@
       "Bash(PORT=3002 timeout 10 node server.js)",
       "Bash(PORT=3003 timeout 15 node server.js)",
       "Bash(true)",
-      "Bash(PORT=3005 timeout 10 node server.js)"
+      "Bash(PORT=3005 timeout 10 node server.js)",
+      "Bash(PORT=3000 timeout 15 node server.js)",
+      "Bash(PORT=3002 timeout 15 node server.js)"
     ],
     "deny": []
   }

@@ -8,6 +8,8 @@ import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import DOMPurify from 'dompurify';
 import { JSDOM } from 'jsdom';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 
 // Setup DOMPurify for server-side HTML sanitization
 const window = new JSDOM('').window;
@@ -18,6 +20,18 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-very-secure-jwt-secret-change-in-production';
+
+// Mock admin users (in production, this would be in a database)
+const adminUsers = [
+  {
+    id: '1',
+    email: 'admin@farlandet.dk',
+    password: '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password: admin123
+    name: 'Administrator',
+    createdAt: new Date().toISOString()
+  }
+];
 
 console.log('🚀 Starting Farlandet.dk server...');
 console.log(`📍 Port: ${PORT}`);
@@ -73,6 +87,30 @@ const submitLimiter = rateLimit({
 app.use(limiter);
 app.use('/api/', apiLimiter);
 
+// JWT Authentication middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      error: 'Access token påkrævet'
+    });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({
+        success: false,
+        error: 'Ugyldig eller udløbet token'
+      });
+    }
+    req.user = user;
+    next();
+  });
+};
+
 // Basic middleware
 app.use(cors());
 app.use(express.json());
@@ -100,6 +138,218 @@ app.get('/api/health', (req, res) => {
     message: 'All systems operational',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
+  });
+});
+
+// Admin Authentication Endpoints
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email og adgangskode påkrævet'
+      });
+    }
+
+    // Find admin user
+    const admin = adminUsers.find(user => user.email === email);
+    if (!admin) {
+      return res.status(401).json({
+        success: false,
+        error: 'Ugyldig email eller adgangskode'
+      });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, admin.password);
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        error: 'Ugyldig email eller adgangskode'
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        id: admin.id, 
+        email: admin.email,
+        name: admin.name 
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Update last login
+    admin.lastLogin = new Date().toISOString();
+
+    // Return user info and token
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: admin.id,
+          email: admin.email,
+          name: admin.name,
+          createdAt: admin.createdAt,
+          lastLogin: admin.lastLogin
+        },
+        token
+      }
+    });
+
+    console.log(`Admin login successful: ${admin.email}`);
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Login fejlede'
+    });
+  }
+});
+
+app.post('/api/auth/logout', authenticateToken, (req, res) => {
+  // For JWT, we don't need to do anything server-side
+  // Token will be removed from client-side storage
+  res.json({
+    success: true,
+    message: 'Logget ud'
+  });
+});
+
+app.get('/api/auth/me', authenticateToken, (req, res) => {
+  // Find user info from token
+  const admin = adminUsers.find(user => user.id === req.user.id);
+  if (!admin) {
+    return res.status(404).json({
+      success: false,
+      error: 'Admin ikke fundet'
+    });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      id: admin.id,
+      email: admin.email,
+      name: admin.name,
+      createdAt: admin.createdAt,
+      lastLogin: admin.lastLogin
+    }
+  });
+});
+
+// Admin Dashboard and Management Endpoints
+app.get('/api/admin/dashboard', authenticateToken, (req, res) => {
+  // Mock dashboard data
+  res.json({
+    success: true,
+    data: {
+      stats: {
+        pending: 5,
+        approved: 23,
+        rejected: 2,
+        total: 30,
+        categories: 8,
+        tags: 45,
+        admins: 1
+      },
+      recentResources: [
+        {
+          id: 1,
+          title: "Faderrolle og mental sundhed",
+          description: "En guide til at håndtere stress som ny far",
+          type: "article",
+          status: "pending",
+          votes: 0,
+          created_at: new Date().toISOString()
+        }
+      ]
+    }
+  });
+});
+
+app.get('/api/admin/resources', authenticateToken, (req, res) => {
+  const { status = 'all', limit = 20, offset = 0 } = req.query;
+  
+  // Mock resources data
+  const mockResources = [
+    {
+      id: 1,
+      title: "Faderrolle og mental sundhed",
+      description: "En guide til at håndtere stress som ny far",
+      url: "https://example.com/article1",
+      type: "article",
+      status: "pending",
+      votes: 0,
+      submitted_by: "anonymous",
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 2,
+      title: "Podcast om forældreskab",
+      description: "Inspirerende samtaler med danske fædre",
+      url: "https://example.com/podcast1",
+      type: "podcast",
+      status: "approved",
+      votes: 15,
+      submitted_by: "test@example.com",
+      created_at: new Date(Date.now() - 86400000).toISOString()
+    }
+  ];
+
+  let filteredResources = mockResources;
+  if (status !== 'all') {
+    filteredResources = mockResources.filter(r => r.status === status);
+  }
+
+  res.json({
+    success: true,
+    data: filteredResources.slice(parseInt(offset), parseInt(offset) + parseInt(limit)),
+    meta: {
+      total: filteredResources.length,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    }
+  });
+});
+
+app.put('/api/admin/resources/:id/moderate', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!['approved', 'rejected'].includes(status)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Status skal være "approved" eller "rejected"'
+    });
+  }
+
+  // Mock resource update
+  console.log(`Admin ${req.user.email} ${status} resource ${id}`);
+  
+  res.json({
+    success: true,
+    data: {
+      id: parseInt(id),
+      title: "Updated Resource",
+      status: status,
+      approved_by: req.user.email,
+      approved_at: new Date().toISOString()
+    }
+  });
+});
+
+app.delete('/api/admin/resources/:id', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  
+  console.log(`Admin ${req.user.email} deleted resource ${id}`);
+  
+  res.json({
+    success: true,
+    message: 'Ressource slettet'
   });
 });
 
