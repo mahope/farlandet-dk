@@ -19,8 +19,7 @@ export function Footer({ className }: FooterProps) {
     community: [
       { label: 'Retningslinjer', href: '/guidelines' },
       { label: 'Privatlivspolitik', href: '/privacy' },
-      { label: 'Kontakt', href: '/contact' },
-      { label: 'Admin', href: '/admin' }
+      { label: 'Kontakt', href: '/contact' }
     ]
   }
 
@@ -125,6 +124,14 @@ export function Footer({ className }: FooterProps) {
                 >
                   <Github className="h-4 w-4" />
                 </a>
+                <span className="text-muted-foreground">•</span>
+                <Link
+                  to="/admin"
+                  className="text-xs text-muted-foreground/60 hover:text-primary transition-colors duration-200"
+                  title="Admin"
+                >
+                  ◦
+                </Link>
               </div>
             </div>
           </div>

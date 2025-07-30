@@ -71,22 +71,19 @@ export function Header({ onSearchChange, className }: HeaderProps) {
             </nav>
           </div>
 
-          {/* Search Bar - Hidden on mobile */}
-          <div className="hidden md:flex flex-1 max-w-md mx-8">
-            <div className="relative w-full group">
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center space-x-3">
+            {/* Search Bar - Moved to right side */}
+            <div className="relative group">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors duration-200" />
               <input
                 type="text"
-                placeholder="Søg efter ressourcer, tips, guides..."
+                placeholder="Søg ressourcer..."
                 value={searchQuery}
                 onChange={handleSearchChange}
-                className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 shadow-sm"
+                className="w-64 pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 shadow-sm"
               />
             </div>
-          </div>
-
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-3">
             {user && (isAdmin || isModerator) && (
               <div className="flex items-center space-x-3">
                 <div className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-accent/50 animate-scale-in">
@@ -118,19 +115,6 @@ export function Header({ onSearchChange, className }: HeaderProps) {
                   Log ud
                 </Button>
               </div>
-            )}
-            {!user && (
-              <Button 
-                asChild 
-                variant="ghost" 
-                size="sm"
-                className="text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
-              >
-                <Link to="/admin">
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Admin Login
-                </Link>
-              </Button>
             )}
           </nav>
 
@@ -219,21 +203,6 @@ export function Header({ onSearchChange, className }: HeaderProps) {
                   >
                     <LogOut className="h-4 w-4 mr-2" />
                     Log ud
-                  </Button>
-                </div>
-              )}
-              {!user && (
-                <div className="pt-4 border-t border-border/40">
-                  <Button 
-                    asChild
-                    variant="ghost"
-                    className="w-full justify-start text-muted-foreground hover:text-foreground hover:bg-accent"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Link to="/admin">
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Admin Login
-                    </Link>
                   </Button>
                 </div>
               )}
