@@ -60,10 +60,10 @@ const apiLimiter = rateLimit({
   }
 });
 
-// Even stricter for submissions
+// Submission rate limiting - more lenient in development
 const submitLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // limit each IP to 10 submissions per hour
+  max: process.env.NODE_ENV === 'production' ? 10 : 100, // 100 in dev, 10 in prod
   message: {
     success: false,
     error: 'For mange indsendelser. Prøv igen om en time.'
@@ -167,30 +167,37 @@ const validateResourceSubmission = [
     .isIn(['link', 'article', 'podcast', 'book', 'video', 'movie', 'tv_series', 'tip'])
     .withMessage('Ugyldig ressource type'),
   body('submitter_email')
-    .optional()
+    .optional({ checkFalsy: true })
     .isEmail()
     .withMessage('Email adresse er ikke gyldig')
     .normalizeEmail(),
   body('tags')
-    .optional({ checkFalsy: true })
-    .custom(value => {
-      // Skip validation if empty or undefined
-      if (!value || value === '') {
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value, { req }) => {
+      // Skip validation if no tags provided
+      if (!value || (Array.isArray(value) && value.length === 0) || value === '') {
         return true;
       }
       
+      let tagsToValidate = [];
+      
       if (Array.isArray(value)) {
-        if (value.length > 10) {
-          throw new Error('Maksimalt 10 tags tilladt');
-        }
-        return value.every(tag => typeof tag === 'string' && tag.length <= 50);
+        tagsToValidate = value.filter(tag => tag && typeof tag === 'string' && tag.trim().length > 0);
       } else if (typeof value === 'string') {
-        const tags = value.split(',').map(t => t.trim()).filter(t => t.length > 0);
-        if (tags.length > 10) {
-          throw new Error('Maksimalt 10 tags tilladt');
-        }
-        return tags.every(tag => tag.length <= 50);
+        tagsToValidate = value.split(',').map(t => t.trim()).filter(t => t.length > 0);
+      } else {
+        throw new Error('Tags skal være en tekst eller en liste');
       }
+      
+      if (tagsToValidate.length > 10) {
+        throw new Error('Maksimalt 10 tags tilladt');
+      }
+      
+      const invalidTag = tagsToValidate.find(tag => tag.length > 50);
+      if (invalidTag) {
+        throw new Error(`Tag "${invalidTag}" er for lang (max 50 tegn)`);
+      }
+      
       return true;
     }),
 ];
@@ -221,12 +228,22 @@ app.post('/api/resources', submitLimiter, validateResourceSubmission, (req, res)
     const sanitizedTitle = purify.sanitize(title.trim());
     const sanitizedDescription = purify.sanitize(description.trim());
     
-    // Process tags
+    // Process tags - simplified and consistent handling
     let processedTags = [];
-    if (Array.isArray(tags)) {
-      processedTags = tags.filter(tag => tag && tag.trim().length > 0).map(tag => tag.trim().toLowerCase());
-    } else if (typeof tags === 'string' && tags.trim().length > 0) {
-      processedTags = tags.split(',').filter(tag => tag && tag.trim().length > 0).map(tag => tag.trim().toLowerCase());
+    if (tags) {
+      if (Array.isArray(tags)) {
+        processedTags = tags
+          .filter(tag => tag && typeof tag === 'string' && tag.trim().length > 0)
+          .map(tag => tag.trim().toLowerCase())
+          .slice(0, 10); // Limit to max 10 tags
+      } else if (typeof tags === 'string' && tags.trim().length > 0) {
+        processedTags = tags
+          .split(',')
+          .map(tag => tag.trim())
+          .filter(tag => tag.length > 0)
+          .map(tag => tag.toLowerCase())
+          .slice(0, 10); // Limit to max 10 tags
+      }
     }
     
     const newResource = {

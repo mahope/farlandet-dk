@@ -102,11 +102,14 @@ export function SubmitResourcePage() {
             body: JSON.stringify(sanitizedData),
           })
 
+          const result = await response.json()
+
           if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+            // Throw error with server's error message if available
+            throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`)
           }
 
-          return await response.json()
+          return result
         },
         { component: 'SubmitResourcePage' }
       )
@@ -129,11 +132,26 @@ export function SubmitResourcePage() {
         })
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Netværksfejl. Prøv igen senere.'
-      setError('Netværksfejl. Prøv igen senere.')
+      let errorMessage = 'Netværksfejl. Prøv igen senere.'
+      
+      if (err instanceof Error) {
+        // Try to extract actual error message from server response
+        if (err.message.includes('HTTP 400')) {
+          errorMessage = 'Valideringsfejl. Tjek dine indtastninger.'
+        } else if (err.message.includes('HTTP 429')) {
+          errorMessage = 'For mange forsøg. Vent lidt og prøv igen.'
+        } else if (err.message.includes('HTTP 500')) {
+          errorMessage = 'Serverfejl. Prøv igen senere.'
+        } else {
+          errorMessage = err.message
+        }
+      }
+      
+      setError(errorMessage)
       logger.error('Resource submission network error', err as Error, {
         component: 'SubmitResourcePage',
-        action: 'form_submit_network_error'
+        action: 'form_submit_network_error',
+        errorMessage
       })
     } finally {
       setIsSubmitting(false)
