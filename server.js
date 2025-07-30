@@ -27,7 +27,7 @@ const adminUsers = [
   {
     id: '1',
     email: 'admin@farlandet.dk',
-    password: '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password: admin123
+    password: 'admin123', // For development - in production use bcrypt hash
     name: 'Administrator',
     createdAt: new Date().toISOString()
   }
@@ -156,14 +156,31 @@ app.post('/api/auth/login', async (req, res) => {
     // Find admin user
     const admin = adminUsers.find(user => user.email === email);
     if (!admin) {
+      console.log('Admin not found for email:', email);
       return res.status(401).json({
         success: false,
         error: 'Ugyldig email eller adgangskode'
       });
     }
 
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, admin.password);
+    // For development, allow both plaintext and hashed passwords
+    let isValidPassword = false;
+    if (admin.password === 'admin123') {
+      // Direct plaintext comparison for development
+      isValidPassword = password === 'admin123';
+    } else {
+      // Try bcrypt comparison
+      try {
+        isValidPassword = await bcrypt.compare(password, admin.password);
+      } catch (error) {
+        console.log('Bcrypt comparison error:', error);
+        // Fallback to plaintext if bcrypt fails
+        isValidPassword = password === admin.password;
+      }
+    }
+
+    console.log('Login attempt:', { email, passwordProvided: !!password, isValidPassword });
+
     if (!isValidPassword) {
       return res.status(401).json({
         success: false,
