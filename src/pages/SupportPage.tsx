@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Layout } from '@/components/layout/Layout'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Link } from 'react-router-dom'
@@ -115,7 +116,9 @@ export function SupportPage() {
   })).filter(category => category.questions.length > 0)
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <Layout>
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-4">Support Center</h1>
@@ -237,6 +240,8 @@ export function SupportPage() {
       <div className="mt-8 text-center text-sm text-muted-foreground">
         <p>Vores supportteam svarer typisk inden for 1-2 arbejdsdage</p>
       </div>
-    </div>
+        </div>
+      </div>
+    </Layout>
   )
 }

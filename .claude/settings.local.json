@@ -1,34 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run build:prod:*)",
-      "Bash(npm install:*)",
-      "Bash(serve:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "Bash(rm:*)",
-      "Bash(git stash:*)",
-      "Bash(find:*)",
-      "Bash(npm run build:*)",
-      "Bash(curl:*)",
-      "Bash(pkill:*)",
-      "Bash(taskkill:*)",
-      "Bash(node server.js)",
-      "Bash(rg:*)",
-      "Bash(touch:*)",
-      "Bash(timeout:*)",
-      "Bash(PORT=3001 timeout 15 node server.js)",
-      "Bash(PORT=3002 timeout 10 node server.js)",
-      "Bash(PORT=3003 timeout 15 node server.js)",
-      "Bash(true)",
-      "Bash(PORT=3005 timeout 10 node server.js)",
-      "Bash(PORT=3000 timeout 15 node server.js)",
-      "Bash(PORT=3002 timeout 15 node server.js)",
-      "Bash(node:*)",
-      "Bash(PORT=3002 node server.js)",
-      "Bash(npm run dev:*)"
+      "Bash(dir \"C:\\Users\\Mads Holst Jensen\\code\\farther-libary\\danish-fathers-directory\\database\")"
     ],
-    "deny": []
+    "deny": [],
+    "ask": []
   }
 }

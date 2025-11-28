@@ -12,33 +12,47 @@ interface ApiResponse<T> {
   }
 }
 
+export type ResourceType = 'link' | 'pdf' | 'article' | 'podcast' | 'tip' | 'book' | 'video' | 'movie' | 'tv_series'
+
 export interface Resource {
   id: number
   title: string
   description?: string
   url?: string
-  type: 'link' | 'pdf' | 'article' | 'podcast' | 'tip' | 'book' | 'video' | 'movie' | 'tv_series'
+  resource_type: ResourceType
+  type?: ResourceType // alias for compatibility
   category_id?: number
   status: 'pending' | 'approved' | 'rejected'
-  votes: number
+  vote_score: number
+  votes?: number // alias
+  view_count?: number
+  submitter_email?: string
   submitted_by?: string
   created_at: string
+  updated_at?: string
   approved_at?: string
   approved_by?: string
-  category?: Category
-  tags?: Tag[]
+  // Joined fields from database
+  category_name?: string
+  category_slug?: string
+  category_color?: string
+  tags?: string[]
 }
 
 export interface Category {
   id: number
   name: string
   description?: string
+  slug: string
+  color: string
+  resource_count?: number
   created_at: string
 }
 
 export interface Tag {
   id: number
   name: string
+  slug: string
   created_at: string
 }
 
@@ -111,13 +125,17 @@ class ApiClient {
 
   // Resources
   async getResources(params: {
-    status?: string
+    category?: string
+    type?: string
+    sort?: 'newest' | 'popular' | 'oldest'
     limit?: number
     offset?: number
   } = {}): Promise<ApiResponse<Resource[]>> {
     const searchParams = new URLSearchParams()
-    
-    if (params.status) searchParams.append('status', params.status)
+
+    if (params.category) searchParams.append('category', params.category)
+    if (params.type) searchParams.append('type', params.type)
+    if (params.sort) searchParams.append('sort', params.sort)
     if (params.limit) searchParams.append('limit', params.limit.toString())
     if (params.offset) searchParams.append('offset', params.offset.toString())
 
@@ -127,6 +145,39 @@ class ApiClient {
 
   async getResource(id: number): Promise<ApiResponse<Resource>> {
     return this.request<Resource>(`/resources/${id}`)
+  }
+
+  async searchResources(params: {
+    q: string
+    category?: string
+    type?: string
+    limit?: number
+    offset?: number
+  }): Promise<ApiResponse<Resource[]>> {
+    const searchParams = new URLSearchParams()
+
+    searchParams.append('q', params.q)
+    if (params.category) searchParams.append('category', params.category)
+    if (params.type) searchParams.append('type', params.type)
+    if (params.limit) searchParams.append('limit', params.limit.toString())
+    if (params.offset) searchParams.append('offset', params.offset.toString())
+
+    return this.request<Resource[]>(`/resources/search?${searchParams.toString()}`)
+  }
+
+  async getCategoryResources(slug: string, params: {
+    sort?: 'newest' | 'popular' | 'oldest'
+    limit?: number
+    offset?: number
+  } = {}): Promise<ApiResponse<{ category: Category; resources: Resource[] }>> {
+    const searchParams = new URLSearchParams()
+
+    if (params.sort) searchParams.append('sort', params.sort)
+    if (params.limit) searchParams.append('limit', params.limit.toString())
+    if (params.offset) searchParams.append('offset', params.offset.toString())
+
+    const query = searchParams.toString()
+    return this.request<{ category: Category; resources: Resource[] }>(`/categories/${slug}/resources${query ? `?${query}` : ''}`)
   }
 
   async createResource(data: CreateResourceRequest): Promise<ApiResponse<Resource>> {

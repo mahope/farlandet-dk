@@ -2,50 +2,106 @@
 @import "tailwindcss";
 
 @theme {
-  /* Modern Minimal Color System */
-  --color-neutral-50: hsl(0 0% 98%);
-  --color-neutral-100: hsl(0 0% 96%);
-  --color-neutral-200: hsl(0 0% 90%);
-  --color-neutral-300: hsl(0 0% 83%);
-  --color-neutral-400: hsl(0 0% 64%);
-  --color-neutral-500: hsl(0 0% 45%);
-  --color-neutral-600: hsl(0 0% 32%);
-  --color-neutral-700: hsl(0 0% 25%);
-  --color-neutral-800: hsl(0 0% 15%);
-  --color-neutral-900: hsl(0 0% 9%);
-  
-  /* Primary Brand Colors - Sophisticated dark green */
-  --color-primary-50: hsl(155 60% 97%);
-  --color-primary-100: hsl(155 55% 93%);
-  --color-primary-200: hsl(155 55% 85%);
-  --color-primary-300: hsl(155 50% 75%);
-  --color-primary-400: hsl(155 45% 65%);
-  --color-primary-500: hsl(155 40% 55%);
-  --color-primary-600: hsl(155 45% 45%);
-  --color-primary-700: hsl(155 50% 35%);
-  --color-primary-800: hsl(155 55% 25%);
-  --color-primary-900: hsl(155 60% 18%);
+  /* ========================================
+     FARLANDET.DK DESIGN SYSTEM
+     Modern, Accessible Color Palette
+     Primary: Green | Secondary: Blue | Accent: Orange
+     ======================================== */
 
-  /* Semantic Colors */
-  --color-background: var(--color-neutral-50);
+  /* Neutral Colors - Warm slate base */
+  --color-neutral-50: hsl(210 20% 98%);
+  --color-neutral-100: hsl(210 17% 95%);
+  --color-neutral-200: hsl(210 15% 89%);
+  --color-neutral-300: hsl(210 12% 78%);
+  --color-neutral-400: hsl(210 10% 58%);
+  --color-neutral-500: hsl(210 8% 42%);
+  --color-neutral-600: hsl(210 10% 32%);
+  --color-neutral-700: hsl(210 12% 24%);
+  --color-neutral-800: hsl(210 15% 16%);
+  --color-neutral-900: hsl(210 18% 10%);
+
+  /* PRIMARY: Forest Green - Warmth, Growth, Trust */
+  --color-primary-50: hsl(152 60% 96%);
+  --color-primary-100: hsl(152 55% 90%);
+  --color-primary-200: hsl(152 52% 80%);
+  --color-primary-300: hsl(152 48% 68%);
+  --color-primary-400: hsl(152 45% 55%);
+  --color-primary-500: hsl(152 50% 42%);
+  --color-primary-600: hsl(152 55% 35%);
+  --color-primary-700: hsl(152 58% 28%);
+  --color-primary-800: hsl(152 60% 22%);
+  --color-primary-900: hsl(152 62% 16%);
+
+  /* SECONDARY: Ocean Blue - Trust, Calm, Information */
+  --color-secondary-50: hsl(215 80% 96%);
+  --color-secondary-100: hsl(215 75% 90%);
+  --color-secondary-200: hsl(215 70% 80%);
+  --color-secondary-300: hsl(215 65% 68%);
+  --color-secondary-400: hsl(215 60% 55%);
+  --color-secondary-500: hsl(215 65% 48%);
+  --color-secondary-600: hsl(215 70% 40%);
+  --color-secondary-700: hsl(215 72% 32%);
+  --color-secondary-800: hsl(215 75% 25%);
+  --color-secondary-900: hsl(215 78% 18%);
+
+  /* ACCENT: Warm Orange - Energy, Action, CTA */
+  --color-accent-50: hsl(28 95% 96%);
+  --color-accent-100: hsl(28 90% 90%);
+  --color-accent-200: hsl(28 88% 80%);
+  --color-accent-300: hsl(28 85% 68%);
+  --color-accent-400: hsl(28 90% 58%);
+  --color-accent-500: hsl(28 95% 50%);
+  --color-accent-600: hsl(25 95% 45%);
+  --color-accent-700: hsl(22 92% 38%);
+  --color-accent-800: hsl(20 88% 32%);
+  --color-accent-900: hsl(18 85% 25%);
+
+  /* SUCCESS: Green variant */
+  --color-success-500: hsl(145 60% 42%);
+  --color-success-600: hsl(145 65% 35%);
+
+  /* WARNING: Yellow-orange */
+  --color-warning-500: hsl(40 95% 50%);
+  --color-warning-600: hsl(38 92% 45%);
+
+  /* DESTRUCTIVE: Red */
+  --color-destructive-500: hsl(0 72% 51%);
+  --color-destructive-600: hsl(0 75% 45%);
+
+  /* ========================================
+     LIGHT MODE SEMANTIC TOKENS
+     ======================================== */
+  --color-background: hsl(210 20% 99%);
   --color-foreground: var(--color-neutral-900);
   --color-card: hsl(0 0% 100%);
   --color-card-foreground: var(--color-neutral-900);
   --color-popover: hsl(0 0% 100%);
   --color-popover-foreground: var(--color-neutral-900);
-  --color-primary: var(--color-primary-600);
+
+  /* Primary semantic */
+  --color-primary: var(--color-primary-500);
   --color-primary-foreground: hsl(0 0% 100%);
-  --color-secondary: var(--color-neutral-100);
-  --color-secondary-foreground: var(--color-neutral-900);
+
+  /* Secondary semantic (blue) */
+  --color-secondary: var(--color-secondary-100);
+  --color-secondary-foreground: var(--color-secondary-700);
+
+  /* Accent semantic (orange for CTAs) */
+  --color-accent: var(--color-accent-500);
+  --color-accent-foreground: hsl(0 0% 100%);
+
+  /* Muted */
   --color-muted: var(--color-neutral-100);
   --color-muted-foreground: var(--color-neutral-500);
-  --color-accent: var(--color-neutral-100);
-  --color-accent-foreground: var(--color-neutral-900);
-  --color-destructive: hsl(0 72% 51%);
+
+  /* Destructive */
+  --color-destructive: var(--color-destructive-500);
   --color-destructive-foreground: hsl(0 0% 100%);
+
+  /* UI elements */
   --color-border: var(--color-neutral-200);
   --color-input: var(--color-neutral-200);
-  --color-ring: var(--color-primary-500);
+  --color-ring: var(--color-primary-400);
 
   /* Modern Radius System */
   --radius-xs: 0.25rem;
@@ -55,7 +111,7 @@
   --radius-lg: 1rem;
   --radius-xl: 1.5rem;
   --radius-2xl: 2rem;
-  
+
   /* Enhanced Shadows */
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
@@ -64,21 +120,38 @@
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
 
+/* ========================================
+   DARK MODE SEMANTIC TOKENS
+   ======================================== */
 .dark {
-  --color-background: var(--color-neutral-900);
+  --color-background: hsl(210 18% 8%);
   --color-foreground: var(--color-neutral-100);
-  --color-card: var(--color-neutral-800);
+  --color-card: hsl(210 15% 12%);
   --color-card-foreground: var(--color-neutral-100);
-  --color-popover: var(--color-neutral-800);
+  --color-popover: hsl(210 15% 14%);
   --color-popover-foreground: var(--color-neutral-100);
-  --color-primary: var(--color-primary-500);
+
+  /* Primary - slightly brighter in dark mode */
+  --color-primary: var(--color-primary-400);
   --color-primary-foreground: var(--color-neutral-900);
-  --color-secondary: var(--color-neutral-800);
-  --color-secondary-foreground: var(--color-neutral-100);
+
+  /* Secondary (blue) - lighter shade */
+  --color-secondary: var(--color-secondary-900);
+  --color-secondary-foreground: var(--color-secondary-200);
+
+  /* Accent (orange) - vibrant in dark mode */
+  --color-accent: var(--color-accent-400);
+  --color-accent-foreground: var(--color-neutral-900);
+
+  /* Muted */
   --color-muted: var(--color-neutral-800);
   --color-muted-foreground: var(--color-neutral-400);
-  --color-accent: var(--color-neutral-800);
-  --color-accent-foreground: var(--color-neutral-100);
+
+  /* Destructive */
+  --color-destructive: hsl(0 65% 55%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+
+  /* UI elements */
   --color-border: var(--color-neutral-700);
   --color-input: var(--color-neutral-700);
   --color-ring: var(--color-primary-400);
@@ -252,7 +325,7 @@ body {
 }
 
 .btn-primary:hover {
-  background: var(--color-primary-700);
+  background: var(--color-primary-600);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -265,6 +338,56 @@ body {
 .btn-primary:focus-visible {
   outline: 2px solid var(--color-ring);
   outline-offset: 2px;
+}
+
+/* Accent button (Orange CTA) */
+.btn-accent {
+  background: var(--color-accent);
+  color: var(--color-accent-foreground);
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm), 0 0 0 0 var(--color-accent-300);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-accent:hover {
+  background: var(--color-accent-600);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg), 0 0 20px 0 var(--color-accent-400);
+}
+
+.btn-accent:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-accent:focus-visible {
+  outline: 2px solid var(--color-accent-400);
+  outline-offset: 2px;
+}
+
+/* Secondary button (Blue) */
+.btn-secondary {
+  background: var(--color-secondary-500);
+  color: hsl(0 0% 100%);
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-lg);
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary:hover {
+  background: var(--color-secondary-600);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 /* Button loading state */

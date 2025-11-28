@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { Layout } from '@/components/layout/Layout'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { ArrowRight, Heart, Users, BookOpen, Star, Zap, Globe, Shield, Sparkles, TrendingUp } from 'lucide-react'
@@ -35,7 +36,7 @@ export function HomePage() {
   ]
 
   return (
-    <div className="min-h-screen">
+    <Layout>
       {/* Modern Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-primary-50 via-white to-primary-100">
         {/* Background Pattern */}
@@ -251,6 +252,6 @@ export function HomePage() {
           </div>
         </div>
       </section>
-    </div>
+    </Layout>
   )
 }

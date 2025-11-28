@@ -1,3 +1,8 @@
+import { Link, Navigate } from 'react-router-dom'
+import { Layout } from '@/components/layout/Layout'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { ArrowRight, Shield } from 'lucide-react'
 import { useSEO } from '../hooks/useSEO'
 
 export function LoginPage() {
@@ -9,44 +14,6 @@ export function LoginPage() {
     type: 'website'
   })
 
-  return (
-    <div className="max-w-md mx-auto">
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold mb-4">
-          Admin Login
-        </h1>
-        <p className="text-lg text-muted-foreground">
-          Kun for administratorer og moderatorer
-        </p>
-      </div>
-
-      {/* Migration notice */}
-      <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-lg mb-8">
-        <h2 className="text-xl font-semibold mb-4 text-yellow-800">⚠️ Under Migration</h2>
-        <p className="text-yellow-700 mb-4">
-          Login funktionaliteten er midlertidigt utilgængelig mens vi migrerer til PocketBase.
-        </p>
-        <p className="text-yellow-700">
-          Admin funktioner kommer snart tilbage!
-        </p>
-      </div>
-
-      {/* Info */}
-      <div className="bg-card p-6 rounded-lg">
-        <h2 className="text-xl font-semibold mb-4">Information</h2>
-        <p className="text-muted-foreground mb-4">
-          Almindelige brugere behøver ikke længere at logge ind for at browse ressourcer.
-        </p>
-        <p className="text-muted-foreground">
-          Kun administratorer og moderatorer har brug for login for at administrere indhold.
-        </p>
-      </div>
-
-      <div className="text-center mt-6">
-        <a href="/" className="text-primary hover:underline">
-          Gå til Forsiden
-        </a>
-      </div>
-    </div>
-  )
+  // Redirect to admin page since that handles login now
+  return <Navigate to="/admin" replace />
 }

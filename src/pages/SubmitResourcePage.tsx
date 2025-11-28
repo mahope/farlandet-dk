@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Layout } from '@/components/layout/Layout'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
@@ -164,7 +165,8 @@ export function SubmitResourcePage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-subtle py-20">
+      <Layout>
+        <div className="bg-gradient-subtle py-20">
         <div className="container mx-auto px-4 lg:px-6">
           <div className="max-w-2xl mx-auto text-center">
             <Card className="border-0 shadow-xl animate-scale-in">
@@ -213,12 +215,14 @@ export function SubmitResourcePage() {
             </Card>
           </div>
         </div>
-      </div>
+        </div>
+      </Layout>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-subtle py-20">
+    <Layout>
+      <div className="bg-gradient-subtle py-20">
       <div className="container mx-auto px-4 lg:px-6">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
@@ -408,6 +412,7 @@ export function SubmitResourcePage() {
           </form>
         </div>
       </div>
-    </div>
+      </div>
+    </Layout>
   )
 }

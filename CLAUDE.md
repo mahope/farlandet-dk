@@ -4,197 +4,238 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is **Farlandet.dk** - a community-driven platform where Danish fathers share resources including links, podcasts, PDFs, articles, tips and tricks. The project is built as a full-stack application with a React frontend and Node.js/Express backend, using PocketBase as the primary database solution.
+**Farlandet.dk** is a community-driven platform where Danish fathers share resources including links, podcasts, PDFs, articles, tips and tricks. Built with React frontend and Express backend with dual backend capability (PocketBase + Express).
 
 ## Development Commands
 
 ```bash
 # Development
-npm run dev                 # Start both frontend and backend servers
-npm run dev:server          # Start only backend server
-npm run dev:full            # Start frontend and backend concurrently
-
-# Building
-npm run build               # Build frontend with TypeScript compilation
-npm run build:prod          # Build for production
-npm run build:server        # Build backend server
+npm run dev                 # Start both Vite frontend and Express backend with nodemon
+npm run build               # Build frontend for production
+npm run start               # Start production server (serves built frontend + API)
+npm run preview             # Preview production build with Vite
 
 # Testing
-npm run test                # Run tests with Vitest in watch mode
+npm run test                # Run Vitest in watch mode
 npm run test:run            # Run tests once and exit
-npm run test:ui             # Run tests with Vitest UI
+npm run test:ui             # Run Vitest with UI
 
 # Code Quality
 npm run lint                # ESLint with TypeScript support
-
-# Database & Setup
-npm run db:init             # Initialize database schema
-npm run db:seed             # Seed database with sample data
-npm run setup               # Complete server setup process
-
-# Production
-npm run start               # Start production frontend server
-npm run start:server        # Start production backend server
-npm run preview             # Preview production build
 ```
 
 ## Tech Stack & Architecture
 
 ### Frontend
 - **React 19** with TypeScript
-- **Vite 7** for build tooling and development
-- **Tailwind CSS v4** with custom configuration
-- **Shadcn/ui** components (stored in `src/components/ui/`)
-- **React Router v7** for navigation
-- **React Hook Form** with Zod validation
-- **Zustand** for state management
+- **Vite 5** for build tooling and fast HMR
+- **Tailwind CSS 4** with `@tailwindcss/postcss`
+- **Shadcn/ui** components in `src/components/ui/`
+- **React Router 6** for client-side routing
+- **React Hook Form** with Zod 4 validation
+- **Zustand** for state management (planned)
 
-### Backend & Data
-- **PocketBase** as primary BaaS solution
-- **Node.js + Express** server for additional API endpoints
-- **PostgreSQL** database with admin authentication
-- Type-safe PocketBase client with comprehensive API wrapper
+### Backend & Data Strategy
+- **Express.js** server (`server.js`) with in-memory storage for development
+- **PocketBase** integration via `src/lib/pocketbase.ts` with type-safe API wrapper
+- Security: Helmet, CORS, express-rate-limit, express-validator
+- JWT authentication for admin users (bcrypt password hashing)
+- HTML sanitization with DOMPurify
 
-### Key Architectural Decisions
+### Key Architectural Patterns
 
-1. **Dual Backend Strategy**: Uses PocketBase for main data operations with Express server for admin functions and additional processing
-2. **Type-safe PocketBase Integration**: Custom `PocketBaseAPI` class in `src/lib/pocketbase.ts` provides type-safe database access
-3. **Context-based Auth**: Both `PocketBaseAuthContext` and `AdminAuthContext` for different authentication flows
-4. **Component-based Architecture**: Organized by feature with shared UI components from Shadcn/ui
-5. **Full-stack TypeScript**: Comprehensive type system across frontend and backend
+1. **Hybrid Backend Architecture**: Express server handles admin authentication and resource submission, with PocketBase integration available for data operations
+2. **Dual Authentication**:
+   - `PocketBaseAuthContext` for public user auth (social providers)
+   - `AdminAuthContext` for admin JWT-based auth via Express
+3. **Type-Safe API Layer**:
+   - `PocketBaseAPI` class in `src/lib/pocketbase.ts` for PocketBase operations
+   - `ApiClient` class in `src/lib/api.ts` for Express API calls
+4. **Development Proxy**: Vite proxies `/api` requests to Express server (port 3002 in dev)
+5. **Production Setup**: Express serves static files from `dist/` and handles API routes
 
-## File Structure & Key Conventions
+## File Structure
 
 ```
 src/
 ├── components/
-│   ├── admin/              # Admin panel components
-│   ├── layout/             # Header, Footer, Layout components  
+│   ├── admin/              # Admin dashboard components
+│   ├── auth/               # Authentication forms (planned)
+│   ├── layout/             # Header, Footer, Layout
 │   └── ui/                 # Shadcn/ui components
-├── contexts/               # React contexts (Auth systems)
-├── hooks/                  # Custom React hooks
-├── lib/                    # Core utilities and configurations
-│   ├── pocketbase.ts       # Type-safe PocketBase API wrapper
-│   └── api.ts             # Express API client
-├── pages/                  # Page components
-├── types/                  # TypeScript definitions
-│   └── pocketbase.ts      # PocketBase-specific types
-└── test/                   # Test setup and utilities
+├── contexts/               # React contexts
+│   ├── AdminAuthContext.tsx      # Admin JWT authentication
+│   └── PocketBaseAuthContext.tsx # PocketBase auth (if used)
+├── lib/
+│   ├── api.ts              # Express API client
+│   ├── pocketbase.ts       # PocketBase client & API wrapper
+│   └── utils.ts            # Utility functions (cn helper)
+├── pages/                  # Page components (HomePage, AdminPage, etc.)
+├── types/
+│   └── pocketbase.ts       # Type definitions for PocketBase records
+└── App.tsx                 # Root component with auth providers
 
-server/
-├── src/
-│   ├── config/            # Database configuration  
-│   ├── routes/            # Express API routes
-│   ├── services/          # Business logic services
-│   └── scripts/           # Database management scripts
+server.js                   # Express server with API routes
+vite.config.ts              # Vite config with API proxy to localhost:3002
 ```
 
-## Database Architecture
+## Backend Architecture (server.js)
 
-### PocketBase Collections
-- `users` - User authentication and profiles with role-based access
-- `resources` - Main content with moderation workflow (pending/approved/rejected)
-- `categories` - Resource categorization system
-- `tags` - Flexible tagging with many-to-many relationships
-- `resource_tags` - Junction table for resource-tag relationships
-- `votes` - Community voting system (up/down votes)
+### In-Memory Storage (Development)
+- Resources stored in `resources` array
+- Mock admin users in `adminUsers` array
+- Production should use real database
+
+### API Endpoints
+
+**Public Endpoints:**
+- `GET /api/ping` - Health check
+- `GET /api/health` - System status with uptime
+- `GET /api/resources` - List approved resources only
+- `GET /api/categories` - List categories
+- `POST /api/resources` - Submit resource (queued as pending, rate-limited)
+
+**Admin Endpoints (require JWT):**
+- `POST /api/auth/login` - Admin login (returns JWT token)
+- `POST /api/auth/logout` - Admin logout
+- `GET /api/auth/me` - Get current admin user
+- `GET /api/admin/dashboard` - Dashboard stats + recent resources
+- `GET /api/admin/resources` - List resources with filters (status, limit, offset)
+- `PUT /api/admin/resources/:id/moderate` - Approve/reject resource
+- `DELETE /api/admin/resources/:id` - Delete resource
+
+### Security Features
+- **Rate Limiting**: General (100 req/15min), API (50 req/15min), Submit (10 req/hour in prod)
+- **Input Validation**: express-validator with custom rules
+- **HTML Sanitization**: DOMPurify for user-submitted content
+- **Helmet**: Content Security Policy headers
+- **JWT Auth**: Protected admin routes with token verification
+
+## PocketBase Integration
+
+The codebase includes comprehensive PocketBase types and API wrapper:
+
+### Collections
+- `users` - Auth with role (user|moderator|admin)
+- `resources` - Main content with moderation workflow
+- `categories` - Resource categories with color/slug
+- `tags` - Flexible tagging system
+- `resource_tags` - Junction table for many-to-many
+- `votes` - Up/down voting by users
 - `comments` - User comments with soft deletion
 
-### Express/PostgreSQL Tables
-- `admin_users` - Admin authentication separate from PocketBase
-- Additional tables for admin-specific functionality
-
-## Authentication Systems
-
-### Dual Authentication Architecture
-1. **PocketBase Auth** (`PocketBaseAuthContext`): Public user authentication with social providers
-2. **Admin Auth** (`AdminAuthContext`): JWT-based admin authentication via Express API
-
-### Usage Patterns
-- Use `useAuth()` hook from PocketBase context for public features
-- Use admin context for moderation and admin panel access
-- Role-based access control: `user` | `moderator` | `admin`
-
-## Development Patterns
-
-### PocketBase Integration
+### Usage Pattern
 ```typescript
-// Use the PocketBaseAPI class for type-safe operations
 import { PocketBaseAPI } from '@/lib/pocketbase'
 
-// Get resources with proper typing
+// Type-safe operations
 const resources = await PocketBaseAPI.getApprovedResources(1, 20, 'category')
-
-// Create resource with validation
-const newResource = await PocketBaseAPI.createResource({
-  title: 'Resource Title',
+const resource = await PocketBaseAPI.createResource({
+  title: 'Title',
   resource_type: 'link',
   status: 'pending'
 })
 ```
 
-### Form Handling
-- Use React Hook Form with Zod schemas for validation
-- Forms located in `src/lib/validations/` directory
-- Type-safe form submissions with PocketBase integration
+## Admin Authentication Flow
 
-### Component Development
-- Follow Shadcn/ui patterns for new components
-- Use `cn()` utility from `src/lib/utils.ts` for conditional styling
-- Implement proper TypeScript interfaces for all props
+1. Admin logs in via `POST /api/auth/login` with email/password
+2. Server validates credentials (supports both plaintext for dev and bcrypt)
+3. JWT token generated with 24h expiry
+4. Frontend stores token and uses `AdminAuthContext`
+5. Protected routes require `Authorization: Bearer <token>` header
 
-## Testing Strategy
+**Development Admin:**
+- Email: `admin@farlandet.dk`
+- Password: `admin123`
 
-- **Vitest** with React Testing Library for component testing
-- **Playwright** for end-to-end testing
-- **jsdom** environment for browser simulation
-- Test files use `*.test.ts` or `*.test.tsx` naming convention
-- Comprehensive test coverage for hooks, components, and utilities
+## Environment Variables
 
-## Environment Configuration
-
-### Frontend Environment Variables
 ```env
-VITE_POCKETBASE_URL=http://127.0.0.1:8090
-VITE_API_URL=http://localhost:3001/api
-```
-
-### Backend Environment Variables
-```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=farlandet
-DB_USER=postgres
-DB_PASSWORD=your_password
-JWT_SECRET=your_jwt_secret
-PORT=3001
+# Server
+PORT=3000
 NODE_ENV=development
+JWT_SECRET=your_jwt_secret_here
+
+# Frontend (VITE_ prefix)
+VITE_API_BASE_URL=http://localhost:3000
+VITE_POCKETBASE_URL=http://127.0.0.1:8090
+VITE_APP_NAME=Farlandet.dk
+
+# Optional
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
 ```
 
-## Code Quality & Conventions
+## Resource Submission & Moderation
 
-- **TypeScript Strict Mode**: All code must pass strict TypeScript compilation
-- **ESLint Configuration**: Uses modern ESLint with TypeScript support
-- **Import Aliases**: Use `@/` for src directory imports
-- **Component Exports**: Proper index.ts files for clean imports
-- **Error Handling**: Comprehensive error boundaries and API error handling
-- **File Upload**: Support for PDF and other file uploads via PocketBase
+### Validation Rules (express-validator)
+- **Title**: 5-255 chars, sanitized
+- **Description**: 10-2000 chars, sanitized
+- **URL**: Valid URL with protocol, blocked domains checked
+- **Type**: One of: link, article, podcast, book, video, movie, tv_series, tip
+- **Tags**: Optional, max 10 tags, each max 50 chars
+- **Email**: Optional, validated email format
 
-## Common Development Tasks
+### Moderation Workflow
+1. User submits resource → `status: 'pending'`
+2. Admin views in dashboard at `/admin`
+3. Admin approves → `status: 'approved'` (visible publicly)
+4. Admin rejects → `status: 'rejected'`
+5. Admin can delete resources entirely
+
+## Component Patterns
+
+### Shadcn/ui Components
+- Located in `src/components/ui/`
+- Use `cn()` utility for conditional classes
+- Follow Radix UI patterns for accessibility
+
+### Page Structure
+- All pages in `src/pages/`
+- Use Layout component for consistent header/footer
+- Admin pages check auth via `useAdminAuth()` hook
+
+## Development Workflow
+
+### Running Locally
+1. `npm install`
+2. Copy `.env.example` to `.env`
+3. `npm run dev` - Starts Vite (5173) + Express (3002)
+4. Vite proxies API calls to Express automatically
+
+### Building for Production
+1. `npm run build` - Creates `dist/` folder
+2. `npm run start` - Express serves static files + API
+3. All routes serve `index.html` for React Router except `/api/*`
 
 ### Adding New Resource Types
-1. Update `ResourceType` union in `src/types/pocketbase.ts`
-2. Update form validation schemas
-3. Add UI components for new type handling
-4. Update PocketBase collection schema if needed
+1. Update `ResourceType` in `src/types/pocketbase.ts`
+2. Add to validation in `server.js` line 448
+3. Update form components
+4. Update PocketBase schema (if using)
 
-### Database Migrations
-- PocketBase: Use admin UI for schema changes
-- Express/PostgreSQL: Add migration scripts in `server/src/scripts/`
+## Code Conventions
 
-### Admin Features
-- All admin functionality goes through Express API
-- Use `AdminAuthContext` for authentication
-- Admin routes protected with JWT middleware
+- **TypeScript**: Strict mode enabled, all props typed
+- **Import Alias**: `@/` maps to `src/`
+- **Styling**: Tailwind utility classes with `cn()` helper
+- **Forms**: React Hook Form + Zod schemas
+- **API Calls**: Use `api` client from `src/lib/api.ts`
+- **Error Handling**: Error boundaries for React, try/catch for API
 
-This architecture supports the project's goal of being a comprehensive community platform while maintaining type safety and developer productivity.
+## Testing
+
+- **Vitest** with React Testing Library
+- **Playwright** for E2E tests
+- **jsdom** environment for component tests
+- Test files: `*.test.ts` or `*.test.tsx`
+
+## Production Deployment
+
+Uses **nixpacks.toml** configuration:
+- Builds with `npm run build`
+- Serves with `npx serve -s dist -l ${PORT}`
+- Single-command deployment on Railway/Render
+
+**Note**: Current in-memory storage is for development only. Production deployment requires migrating to persistent database (PostgreSQL or PocketBase).

@@ -10,6 +10,7 @@ import DOMPurify from 'dompurify';
 import { JSDOM } from 'jsdom';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import db from './lib/db.js';
 
 // Setup DOMPurify for server-side HTML sanitization
 const window = new JSDOM('').window;
@@ -22,24 +23,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-very-secure-jwt-secret-change-in-production';
 
-// In-memory storage for development (in production, use database)
-let resources = [];
-let resourceIdCounter = 1;
-
-// Mock admin users (in production, this would be in a database)
-const adminUsers = [
-  {
-    id: '1',
-    email: 'admin@farlandet.dk',
-    password: 'admin123', // For development - in production use bcrypt hash
-    name: 'Administrator',
-    createdAt: new Date().toISOString()
-  }
-];
-
 console.log('🚀 Starting Farlandet.dk server...');
 console.log(`📍 Port: ${PORT}`);
 console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+
+// Test database connection on startup
+(async () => {
+  const dbConnected = await db.testConnection();
+  if (!dbConnected) {
+    console.error('⚠️ Warning: Database not connected. Some features may not work.');
+  }
+})();
 
 // Security middleware
 app.use(helmet({
@@ -157,8 +151,15 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
-    // Find admin user
-    const admin = adminUsers.find(user => user.email === email);
+    // Find admin user in database
+    const result = await db.query(
+      `SELECT id, email, username, password_hash, role, created_at
+       FROM users
+       WHERE email = $1 AND role IN ('admin', 'moderator')`,
+      [email.toLowerCase()]
+    );
+
+    const admin = result.rows[0];
     if (!admin) {
       console.log('Admin not found for email:', email);
       return res.status(401).json({
@@ -167,19 +168,13 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
-    // For development, allow both plaintext and hashed passwords
+    // Verify password with bcrypt
     let isValidPassword = false;
-    if (admin.password === 'admin123') {
-      // Direct plaintext comparison for development
-      isValidPassword = password === 'admin123';
-    } else {
-      // Try bcrypt comparison
+    if (admin.password_hash) {
       try {
-        isValidPassword = await bcrypt.compare(password, admin.password);
+        isValidPassword = await bcrypt.compare(password, admin.password_hash);
       } catch (error) {
         console.log('Bcrypt comparison error:', error);
-        // Fallback to plaintext if bcrypt fails
-        isValidPassword = password === admin.password;
       }
     }
 
@@ -194,17 +189,21 @@ app.post('/api/auth/login', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { 
-        id: admin.id, 
+      {
+        id: admin.id,
         email: admin.email,
-        name: admin.name 
+        name: admin.username || admin.email,
+        role: admin.role
       },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
 
     // Update last login
-    admin.lastLogin = new Date().toISOString();
+    await db.query(
+      'UPDATE users SET last_login = NOW() WHERE id = $1',
+      [admin.id]
+    );
 
     // Return user info and token
     res.json({
@@ -213,9 +212,10 @@ app.post('/api/auth/login', async (req, res) => {
         user: {
           id: admin.id,
           email: admin.email,
-          name: admin.name,
-          createdAt: admin.createdAt,
-          lastLogin: admin.lastLogin
+          name: admin.username || admin.email,
+          role: admin.role,
+          createdAt: admin.created_at,
+          lastLogin: new Date().toISOString()
         },
         token
       }
@@ -240,181 +240,517 @@ app.post('/api/auth/logout', authenticateToken, (req, res) => {
   });
 });
 
-app.get('/api/auth/me', authenticateToken, (req, res) => {
-  // Find user info from token
-  const admin = adminUsers.find(user => user.id === req.user.id);
-  if (!admin) {
-    return res.status(404).json({
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    // Find user info from database
+    const result = await db.query(
+      `SELECT id, email, username, role, created_at, last_login
+       FROM users WHERE id = $1`,
+      [req.user.id]
+    );
+
+    const admin = result.rows[0];
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        error: 'Admin ikke fundet'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: admin.id,
+        email: admin.email,
+        name: admin.username || admin.email,
+        role: admin.role,
+        createdAt: admin.created_at,
+        lastLogin: admin.last_login
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({
       success: false,
-      error: 'Admin ikke fundet'
+      error: 'Kunne ikke hente brugerdata'
     });
   }
-
-  res.json({
-    success: true,
-    data: {
-      id: admin.id,
-      email: admin.email,
-      name: admin.name,
-      createdAt: admin.createdAt,
-      lastLogin: admin.lastLogin
-    }
-  });
 });
 
 // Admin Dashboard and Management Endpoints
-app.get('/api/admin/dashboard', authenticateToken, (req, res) => {
-  // Calculate real statistics from stored resources
-  const pending = resources.filter(r => r.status === 'pending').length;
-  const approved = resources.filter(r => r.status === 'approved').length;
-  const rejected = resources.filter(r => r.status === 'rejected').length;
-  const total = resources.length;
-  
-  // Get unique tags count
-  const allTags = resources.flatMap(r => r.tags || []);
-  const uniqueTags = [...new Set(allTags)];
-  
-  // Get recent resources (last 5)
-  const recentResources = resources
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5);
+app.get('/api/admin/dashboard', authenticateToken, async (req, res) => {
+  try {
+    // Get statistics from database
+    const statsResult = await db.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'pending') as pending,
+        COUNT(*) FILTER (WHERE status = 'approved') as approved,
+        COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
+        COUNT(*) as total
+      FROM resources
+    `);
 
-  res.json({
-    success: true,
-    data: {
-      stats: {
-        pending,
-        approved,
-        rejected,
-        total,
-        categories: 8, // Static for now
-        tags: uniqueTags.length,
-        admins: 1
-      },
-      recentResources
+    const categoriesResult = await db.query('SELECT COUNT(*) as count FROM categories');
+    const tagsResult = await db.query('SELECT COUNT(*) as count FROM tags');
+    const adminsResult = await db.query(`SELECT COUNT(*) as count FROM users WHERE role IN ('admin', 'moderator')`);
+
+    // Get recent resources (last 5) with category info
+    const recentResult = await db.query(`
+      SELECT r.*, c.name as category_name, c.slug as category_slug
+      FROM resources r
+      LEFT JOIN categories c ON r.category_id = c.id
+      ORDER BY r.created_at DESC
+      LIMIT 5
+    `);
+
+    const stats = statsResult.rows[0];
+
+    res.json({
+      success: true,
+      data: {
+        stats: {
+          pending: parseInt(stats.pending) || 0,
+          approved: parseInt(stats.approved) || 0,
+          rejected: parseInt(stats.rejected) || 0,
+          total: parseInt(stats.total) || 0,
+          categories: parseInt(categoriesResult.rows[0]?.count) || 0,
+          tags: parseInt(tagsResult.rows[0]?.count) || 0,
+          admins: parseInt(adminsResult.rows[0]?.count) || 0
+        },
+        recentResources: recentResult.rows
+      }
+    });
+  } catch (error) {
+    console.error('Dashboard error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Kunne ikke hente dashboard data'
+    });
+  }
+});
+
+app.get('/api/admin/resources', authenticateToken, async (req, res) => {
+  try {
+    const { status = 'all', limit = 20, offset = 0, search } = req.query;
+
+    let query = `
+      SELECT r.*, c.name as category_name, c.slug as category_slug, c.color as category_color,
+             ARRAY_AGG(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL) as tags
+      FROM resources r
+      LEFT JOIN categories c ON r.category_id = c.id
+      LEFT JOIN resource_tags rt ON r.id = rt.resource_id
+      LEFT JOIN tags t ON rt.tag_id = t.id
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    // Filter by status
+    if (status !== 'all') {
+      query += ` WHERE r.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
     }
-  });
-});
 
-app.get('/api/admin/resources', authenticateToken, (req, res) => {
-  const { status = 'all', limit = 20, offset = 0 } = req.query;
-  
-  // Filter resources by status
-  let filteredResources = resources;
-  if (status !== 'all') {
-    filteredResources = resources.filter(r => r.status === status);
-  }
-
-  // Sort by creation date (newest first)
-  filteredResources = filteredResources.sort((a, b) => 
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
-
-  // Apply pagination
-  const startIndex = parseInt(offset);
-  const endIndex = startIndex + parseInt(limit);
-  const paginatedResources = filteredResources.slice(startIndex, endIndex);
-
-  res.json({
-    success: true,
-    data: paginatedResources,
-    meta: {
-      total: filteredResources.length,
-      limit: parseInt(limit),
-      offset: parseInt(offset)
+    // Search filter
+    if (search) {
+      const whereClause = status !== 'all' ? ' AND' : ' WHERE';
+      query += `${whereClause} (r.title ILIKE $${paramIndex} OR r.description ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
     }
-  });
+
+    query += ` GROUP BY r.id, c.id ORDER BY r.created_at DESC`;
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const result = await db.query(query, params);
+
+    // Get total count
+    let countQuery = 'SELECT COUNT(*) as total FROM resources';
+    const countParams = [];
+    if (status !== 'all') {
+      countQuery += ' WHERE status = $1';
+      countParams.push(status);
+    }
+    const countResult = await db.query(countQuery, countParams);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      meta: {
+        total: parseInt(countResult.rows[0]?.total) || 0,
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching admin resources:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Kunne ikke hente ressourcer'
+    });
+  }
 });
 
-app.put('/api/admin/resources/:id/moderate', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
+app.put('/api/admin/resources/:id/moderate', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, rejection_reason } = req.body;
 
-  if (!['approved', 'rejected'].includes(status)) {
-    return res.status(400).json({
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Status skal være "approved" eller "rejected"'
+      });
+    }
+
+    // Update resource in database
+    const result = await db.query(
+      `UPDATE resources
+       SET status = $1,
+           approved_by = $2,
+           approved_at = CASE WHEN $1 = 'approved' THEN NOW() ELSE approved_at END,
+           rejection_reason = $3,
+           updated_at = NOW()
+       WHERE id = $4
+       RETURNING *`,
+      [status, req.user.email, rejection_reason || null, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ressource ikke fundet'
+      });
+    }
+
+    console.log(`Admin ${req.user.email} ${status} resource ${id}: "${result.rows[0].title}"`);
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Moderation error:', error);
+    res.status(500).json({
       success: false,
-      error: 'Status skal være "approved" eller "rejected"'
+      error: 'Kunne ikke moderere ressource'
     });
   }
-
-  // Find and update the resource
-  const resourceIndex = resources.findIndex(r => r.id === id);
-  if (resourceIndex === -1) {
-    return res.status(404).json({
-      success: false,
-      error: 'Ressource ikke fundet'
-    });
-  }
-
-  // Update resource status
-  resources[resourceIndex] = {
-    ...resources[resourceIndex],
-    status: status,
-    approved_by: req.user.email,
-    approved_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-
-  console.log(`Admin ${req.user.email} ${status} resource ${id}: "${resources[resourceIndex].title}"`);
-  
-  res.json({
-    success: true,
-    data: resources[resourceIndex]
-  });
 });
 
-app.delete('/api/admin/resources/:id', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  
-  // Find and remove the resource
-  const resourceIndex = resources.findIndex(r => r.id === id);
-  if (resourceIndex === -1) {
-    return res.status(404).json({
+app.delete('/api/admin/resources/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get resource info before deleting
+    const resourceResult = await db.query('SELECT title FROM resources WHERE id = $1', [id]);
+    if (resourceResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ressource ikke fundet'
+      });
+    }
+
+    const title = resourceResult.rows[0].title;
+
+    // Delete resource (cascade will handle resource_tags)
+    await db.query('DELETE FROM resources WHERE id = $1', [id]);
+
+    console.log(`Admin ${req.user.email} deleted resource ${id}: "${title}"`);
+
+    res.json({
+      success: true,
+      message: 'Ressource slettet'
+    });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({
       success: false,
-      error: 'Ressource ikke fundet'
+      error: 'Kunne ikke slette ressource'
     });
   }
-
-  const deletedResource = resources[resourceIndex];
-  resources.splice(resourceIndex, 1);
-  
-  console.log(`Admin ${req.user.email} deleted resource ${id}: "${deletedResource.title}"`);
-  
-  res.json({
-    success: true,
-    message: 'Ressource slettet'
-  });
 });
 
 // Public API endpoints
-app.get('/api/resources', (req, res) => {
-  // Only return approved resources for public consumption
-  const approvedResources = resources.filter(r => r.status === 'approved');
-  
-  // Sort by creation date (newest first)
-  const sortedResources = approvedResources.sort((a, b) => 
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
+app.get('/api/resources', async (req, res) => {
+  try {
+    const { category, type, sort = 'newest', limit = 20, offset = 0 } = req.query;
 
-  res.json({
-    success: true,
-    data: sortedResources,
-    meta: {
-      total: sortedResources.length,
-      page: 1
+    let query = `
+      SELECT r.*, c.name as category_name, c.slug as category_slug, c.color as category_color,
+             ARRAY_AGG(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL) as tags
+      FROM resources r
+      LEFT JOIN categories c ON r.category_id = c.id
+      LEFT JOIN resource_tags rt ON r.id = rt.resource_id
+      LEFT JOIN tags t ON rt.tag_id = t.id
+      WHERE r.status = 'approved'
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    // Filter by category
+    if (category) {
+      query += ` AND c.slug = $${paramIndex}`;
+      params.push(category);
+      paramIndex++;
     }
-  });
+
+    // Filter by type
+    if (type) {
+      query += ` AND r.resource_type = $${paramIndex}`;
+      params.push(type);
+      paramIndex++;
+    }
+
+    query += ' GROUP BY r.id, c.id';
+
+    // Sorting
+    switch (sort) {
+      case 'popular':
+        query += ' ORDER BY r.vote_score DESC, r.created_at DESC';
+        break;
+      case 'oldest':
+        query += ' ORDER BY r.created_at ASC';
+        break;
+      default: // newest
+        query += ' ORDER BY r.created_at DESC';
+    }
+
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const result = await db.query(query, params);
+
+    // Get total count
+    let countQuery = 'SELECT COUNT(*) as total FROM resources WHERE status = $1';
+    const countParams = ['approved'];
+    if (category) {
+      countQuery = `
+        SELECT COUNT(*) as total FROM resources r
+        LEFT JOIN categories c ON r.category_id = c.id
+        WHERE r.status = $1 AND c.slug = $2
+      `;
+      countParams.push(category);
+    }
+    const countResult = await db.query(countQuery, countParams);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      meta: {
+        total: parseInt(countResult.rows[0]?.total) || 0,
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching resources:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Kunne ikke hente ressourcer'
+    });
+  }
 });
 
-app.get('/api/categories', (req, res) => {
-  res.json({
-    success: true,
-    data: [
-      { id: 1, name: "Bøger", slug: "boger" },
-      { id: 2, name: "Podcasts", slug: "podcasts" },
-      { id: 3, name: "Artikler", slug: "artikler" }
-    ]
-  });
+// Get single resource by ID
+app.get('/api/resources/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(`
+      SELECT r.*, c.name as category_name, c.slug as category_slug, c.color as category_color,
+             ARRAY_AGG(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL) as tags
+      FROM resources r
+      LEFT JOIN categories c ON r.category_id = c.id
+      LEFT JOIN resource_tags rt ON r.id = rt.resource_id
+      LEFT JOIN tags t ON rt.tag_id = t.id
+      WHERE r.id = $1 AND r.status = 'approved'
+      GROUP BY r.id, c.id
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ressource ikke fundet'
+      });
+    }
+
+    // Increment view count
+    await db.query('UPDATE resources SET view_count = view_count + 1 WHERE id = $1', [id]);
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching resource:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Kunne ikke hente ressource'
+    });
+  }
+});
+
+// Search resources
+app.get('/api/resources/search', async (req, res) => {
+  try {
+    const { q, category, type, limit = 20, offset = 0 } = req.query;
+
+    if (!q || q.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Søgning kræver mindst 2 tegn'
+      });
+    }
+
+    let query = `
+      SELECT r.*, c.name as category_name, c.slug as category_slug, c.color as category_color,
+             ARRAY_AGG(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL) as tags,
+             ts_rank(to_tsvector('danish', r.title || ' ' || COALESCE(r.description, '')),
+                     plainto_tsquery('danish', $1)) as rank
+      FROM resources r
+      LEFT JOIN categories c ON r.category_id = c.id
+      LEFT JOIN resource_tags rt ON r.id = rt.resource_id
+      LEFT JOIN tags t ON rt.tag_id = t.id
+      WHERE r.status = 'approved'
+        AND (to_tsvector('danish', r.title || ' ' || COALESCE(r.description, ''))
+             @@ plainto_tsquery('danish', $1)
+             OR r.title ILIKE $2
+             OR r.description ILIKE $2)
+    `;
+    const params = [q, `%${q}%`];
+    let paramIndex = 3;
+
+    // Filter by category
+    if (category) {
+      query += ` AND c.slug = $${paramIndex}`;
+      params.push(category);
+      paramIndex++;
+    }
+
+    // Filter by type
+    if (type) {
+      query += ` AND r.resource_type = $${paramIndex}`;
+      params.push(type);
+      paramIndex++;
+    }
+
+    query += ` GROUP BY r.id, c.id ORDER BY rank DESC, r.vote_score DESC`;
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const result = await db.query(query, params);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      meta: {
+        query: q,
+        total: result.rows.length,
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      }
+    });
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Søgning fejlede'
+    });
+  }
+});
+
+// Get categories with resource count
+app.get('/api/categories', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT c.*,
+             COUNT(r.id) FILTER (WHERE r.status = 'approved') as resource_count
+      FROM categories c
+      LEFT JOIN resources r ON r.category_id = c.id
+      GROUP BY c.id
+      ORDER BY c.name ASC
+    `);
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Kunne ikke hente kategorier'
+    });
+  }
+});
+
+// Get resources by category slug
+app.get('/api/categories/:slug/resources', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { sort = 'newest', limit = 20, offset = 0 } = req.query;
+
+    // First get the category
+    const categoryResult = await db.query(
+      'SELECT * FROM categories WHERE slug = $1',
+      [slug]
+    );
+
+    if (categoryResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Kategori ikke fundet'
+      });
+    }
+
+    const category = categoryResult.rows[0];
+
+    // Get resources for this category
+    let orderBy = 'r.created_at DESC';
+    if (sort === 'popular') orderBy = 'r.vote_score DESC, r.created_at DESC';
+    if (sort === 'oldest') orderBy = 'r.created_at ASC';
+
+    const result = await db.query(`
+      SELECT r.*, c.name as category_name, c.slug as category_slug, c.color as category_color,
+             ARRAY_AGG(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL) as tags
+      FROM resources r
+      LEFT JOIN categories c ON r.category_id = c.id
+      LEFT JOIN resource_tags rt ON r.id = rt.resource_id
+      LEFT JOIN tags t ON rt.tag_id = t.id
+      WHERE r.status = 'approved' AND c.slug = $1
+      GROUP BY r.id, c.id
+      ORDER BY ${orderBy}
+      LIMIT $2 OFFSET $3
+    `, [slug, parseInt(limit), parseInt(offset)]);
+
+    // Get total count
+    const countResult = await db.query(`
+      SELECT COUNT(*) as total FROM resources r
+      JOIN categories c ON r.category_id = c.id
+      WHERE r.status = 'approved' AND c.slug = $1
+    `, [slug]);
+
+    res.json({
+      success: true,
+      data: {
+        category,
+        resources: result.rows
+      },
+      meta: {
+        total: parseInt(countResult.rows[0]?.total) || 0,
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching category resources:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Kunne ikke hente ressourcer'
+    });
+  }
 });
 
 // Input validation middleware
@@ -483,7 +819,9 @@ const validateResourceSubmission = [
     }),
 ];
 
-app.post('/api/resources', submitLimiter, validateResourceSubmission, (req, res) => {
+app.post('/api/resources', submitLimiter, validateResourceSubmission, async (req, res) => {
+  const client = await db.getClient();
+
   try {
     // Log incoming request for debugging
     console.log('Resource submission request:', {
@@ -496,6 +834,7 @@ app.post('/api/resources', submitLimiter, validateResourceSubmission, (req, res)
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       console.log('Validation errors:', errors.array());
+      client.release();
       return res.status(400).json({
         success: false,
         error: errors.array()[0].msg,
@@ -503,12 +842,12 @@ app.post('/api/resources', submitLimiter, validateResourceSubmission, (req, res)
       });
     }
 
-    const { title, description, url, type, submitter_email, tags } = req.body;
-    
+    const { title, description, url, type, submitter_email, tags, category_id } = req.body;
+
     // Sanitize HTML content
     const sanitizedTitle = purify.sanitize(title.trim());
     const sanitizedDescription = purify.sanitize(description.trim());
-    
+
     // Process tags - simplified and consistent handling
     let processedTags = [];
     if (tags) {
@@ -516,57 +855,80 @@ app.post('/api/resources', submitLimiter, validateResourceSubmission, (req, res)
         processedTags = tags
           .filter(tag => tag && typeof tag === 'string' && tag.trim().length > 0)
           .map(tag => tag.trim().toLowerCase())
-          .slice(0, 10); // Limit to max 10 tags
+          .slice(0, 10);
       } else if (typeof tags === 'string' && tags.trim().length > 0) {
         processedTags = tags
           .split(',')
           .map(tag => tag.trim())
           .filter(tag => tag.length > 0)
           .map(tag => tag.toLowerCase())
-          .slice(0, 10); // Limit to max 10 tags
+          .slice(0, 10);
       }
     }
-    
-    const newResource = {
-      id: resourceIdCounter++,
-      title: sanitizedTitle,
-      description: sanitizedDescription,
-      url: url.trim(),
-      type: type.trim(),
-      submitter_email: submitter_email ? submitter_email.trim() : null,
-      submitted_by: submitter_email ? submitter_email.trim() : 'anonymous',
-      tags: processedTags,
-      status: 'pending',
-      votes: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    // Store resource in memory array
-    resources.push(newResource);
-    
-    // Secure logging - don't log sensitive data
+
+    // Start transaction
+    await client.query('BEGIN');
+
+    // Insert resource
+    const resourceResult = await client.query(
+      `INSERT INTO resources (title, description, url, resource_type, category_id, submitter_email, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+       RETURNING *`,
+      [sanitizedTitle, sanitizedDescription, url.trim(), type.trim(), category_id || null, submitter_email?.trim() || null]
+    );
+
+    const newResource = resourceResult.rows[0];
+
+    // Process and insert tags
+    if (processedTags.length > 0) {
+      for (const tagName of processedTags) {
+        // Insert tag if not exists, get ID
+        const tagResult = await client.query(
+          `INSERT INTO tags (name, slug)
+           VALUES ($1, $2)
+           ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id`,
+          [tagName, tagName.replace(/\s+/g, '-').toLowerCase()]
+        );
+
+        const tagId = tagResult.rows[0].id;
+
+        // Link tag to resource
+        await client.query(
+          `INSERT INTO resource_tags (resource_id, tag_id) VALUES ($1, $2)
+           ON CONFLICT DO NOTHING`,
+          [newResource.id, tagId]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // Secure logging
     console.log('New resource submission:', {
       id: newResource.id,
       title: newResource.title.substring(0, 50) + '...',
-      type: newResource.type,
+      type: newResource.resource_type,
       url_domain: new URL(newResource.url).hostname,
-      tags_count: newResource.tags.length,
+      tags_count: processedTags.length,
       has_email: !!newResource.submitter_email,
       timestamp: newResource.created_at
     });
-    
+
     res.status(201).json({
       success: true,
       message: 'Ressource modtaget! Den vil blive gennemgået før publicering.',
-      data: newResource
+      data: { ...newResource, tags: processedTags }
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error processing resource submission:', error);
     res.status(500).json({
       success: false,
       error: 'Der opstod en fejl ved behandling af din indsendelse. Prøv igen senere.'
     });
+  } finally {
+    client.release();
   }
 });
 
@@ -614,17 +976,19 @@ server.on('error', (error) => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('📴 Shutting down gracefully...');
-  server.close(() => {
+  server.close(async () => {
+    await db.closePool();
     console.log('✅ Server closed');
     process.exit(0);
   });
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('📴 Shutting down gracefully...');
-  server.close(() => {
+  server.close(async () => {
+    await db.closePool();
     console.log('✅ Server closed');
     process.exit(0);
   });

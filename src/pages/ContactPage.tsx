@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Layout } from '@/components/layout/Layout'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Textarea } from '../components/ui/textarea'
@@ -46,7 +47,9 @@ export function ContactPage() {
 
   if (submitted) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <Layout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
         <div className="text-center">
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-6" />
           <h1 className="text-3xl font-bold mb-4">Tak for din henvendelse!</h1>
@@ -84,12 +87,15 @@ export function ContactPage() {
             </div>
           </div>
         </div>
-      </div>
+          </div>
+        </div>
+      </Layout>
     )
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <Layout>
+      <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-4">Kontakt os</h1>
@@ -252,6 +258,7 @@ export function ContactPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </Layout>
   )
 }

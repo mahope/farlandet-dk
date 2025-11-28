@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Search, Menu, X, User, LogOut, Sparkles } from 'lucide-react'
 import { Button } from '../ui/button'
+import { ThemeToggle } from '../ui/theme-toggle'
 import { useAuth } from '../../contexts/PocketBaseAuthContext'
 import { cn } from '../../lib/utils'
 
@@ -15,11 +16,20 @@ export function Header({ onSearchChange, className }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const location = useLocation()
+  const navigate = useNavigate()
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value
     setSearchQuery(query)
     onSearchChange?.(query)
+  }
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim().length >= 2) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`)
+      setIsMenuOpen(false)
+    }
   }
 
   const handleSignOut = async () => {
@@ -73,8 +83,8 @@ export function Header({ onSearchChange, className }: HeaderProps) {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-3">
-            {/* Search Bar - Moved to right side */}
-            <div className="relative group">
+            {/* Search Bar */}
+            <form onSubmit={handleSearchSubmit} className="relative group">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors duration-200" />
               <input
                 type="text"
@@ -83,7 +93,10 @@ export function Header({ onSearchChange, className }: HeaderProps) {
                 onChange={handleSearchChange}
                 className="w-64 pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 shadow-sm"
               />
-            </div>
+            </form>
+
+            {/* Theme Toggle */}
+            <ThemeToggle />
             {user && (isAdmin || isModerator) && (
               <div className="flex items-center space-x-3">
                 <div className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-accent/50 animate-scale-in">
@@ -135,7 +148,7 @@ export function Header({ onSearchChange, className }: HeaderProps) {
 
         {/* Mobile Search Bar */}
         <div className="md:hidden pb-4 animate-fade-in">
-          <div className="relative group">
+          <form onSubmit={handleSearchSubmit} className="relative group">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors duration-200" />
             <input
               type="text"
@@ -144,13 +157,19 @@ export function Header({ onSearchChange, className }: HeaderProps) {
               onChange={handleSearchChange}
               className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 shadow-sm"
             />
-          </div>
+          </form>
         </div>
 
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden border-t border-border/40 glass animate-scale-in">
             <nav className="py-6 space-y-4">
+              {/* Theme Toggle for Mobile */}
+              <div className="flex items-center justify-between px-3 py-2">
+                <span className="text-sm font-medium text-muted-foreground">Tema</span>
+                <ThemeToggle />
+              </div>
+
               {/* Mobile Navigation Links */}
               <div className="space-y-2">
                 {[

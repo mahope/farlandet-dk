@@ -12,9 +12,9 @@ interface LayoutProps {
   showFooter?: boolean
 }
 
-export function Layout({ 
-  children, 
-  onSearchChange, 
+export function Layout({
+  children,
+  onSearchChange,
   className,
   showHeader = true,
   showFooter = true
@@ -23,18 +23,15 @@ export function Layout({
     <div className="min-h-screen flex flex-col bg-background">
       <SetupBanner />
       {showHeader && (
-        <Header 
+        <Header
           onSearchChange={onSearchChange}
         />
       )}
-      
-      <main className={cn(
-        "flex-1 container mx-auto px-4 py-6",
-        className
-      )}>
+
+      <main className={cn("flex-1", className)}>
         {children}
       </main>
-      
+
       {showFooter && <Footer />}
     </div>
   )

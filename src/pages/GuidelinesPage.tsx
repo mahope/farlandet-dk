@@ -1,11 +1,13 @@
-
+import { Layout } from '@/components/layout/Layout'
 import { Button } from '../components/ui/button'
 import { Link } from 'react-router-dom'
 import { Shield, Users, Heart, AlertTriangle } from 'lucide-react'
 
 export function GuidelinesPage() {
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <Layout>
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-4">Retningslinjer for Fællesskabet</h1>
@@ -173,6 +175,8 @@ export function GuidelinesPage() {
           </Link>
         </Button>
       </div>
-    </div>
+        </div>
+      </div>
+    </Layout>
   )
 }
