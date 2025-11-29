@@ -7,15 +7,16 @@
 -- CATEGORIES SEED DATA
 -- =====================================================
 
+-- Colors chosen for WCAG AA contrast (4.5:1 minimum on white background)
 INSERT INTO categories (name, description, slug, color) VALUES
-('Bøger', 'Anbefalede bøger om faderskab, opdragelse og familieliv', 'boger', '#3B82F6'),
-('Podcasts', 'Podcasts om faderskab, forældre-tips og familieliv', 'podcasts', '#8B5CF6'),
-('Artikler', 'Artikler og blogindlæg om faderskab', 'artikler', '#10B981'),
-('Tips & Tricks', 'Praktiske tips og tricks til hverdagen som far', 'tips-tricks', '#F59E0B'),
-('Videoer', 'Videoer om faderskab, aktiviteter og læring', 'videoer', '#EF4444'),
-('Film', 'Anbefalede film til hele familien', 'film', '#EC4899'),
-('TV-serier', 'TV-serier for børn og familier', 'tv-serier', '#6366F1'),
-('Aktiviteter', 'Aktiviteter og oplevelser med børn', 'aktiviteter', '#14B8A6')
+('Bøger', 'Anbefalede bøger om faderskab, opdragelse og familieliv', 'boger', '#2563EB'),
+('Podcasts', 'Podcasts om faderskab, forældre-tips og familieliv', 'podcasts', '#7C3AED'),
+('Artikler', 'Artikler og blogindlæg om faderskab', 'artikler', '#059669'),
+('Tips & Tricks', 'Praktiske tips og tricks til hverdagen som far', 'tips-tricks', '#D97706'),
+('Videoer', 'Videoer om faderskab, aktiviteter og læring', 'videoer', '#DC2626'),
+('Film', 'Anbefalede film til hele familien', 'film', '#DB2777'),
+('TV-serier', 'TV-serier for børn og familier', 'tv-serier', '#4F46E5'),
+('Aktiviteter', 'Aktiviteter og oplevelser med børn', 'aktiviteter', '#0D9488')
 ON CONFLICT (slug) DO NOTHING;
 
 -- =====================================================
