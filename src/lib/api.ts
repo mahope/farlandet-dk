@@ -257,6 +257,19 @@ class ApiClient {
     return this.request<Tag[]>(`/tags/search${query ? `?${query}` : ''}`)
   }
 
+  async validateUrl(url: string): Promise<ApiResponse<{
+    valid: boolean
+    reachable: boolean
+    status?: number
+    error?: string
+    warning?: string
+    finalUrl?: string
+  }>> {
+    const searchParams = new URLSearchParams()
+    searchParams.append('url', url)
+    return this.request(`/validate-url?${searchParams.toString()}`)
+  }
+
   // Related resources
   async getRelatedResources(id: number, params: { limit?: number } = {}): Promise<ApiResponse<Resource[]>> {
     const searchParams = new URLSearchParams()

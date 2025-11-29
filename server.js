@@ -504,6 +504,193 @@ app.get('/api/tags', async (req, res) => {
   }
 });
 
+// URL validation endpoint - checks if URL is reachable
+app.get('/api/validate-url', async (req, res) => {
+  try {
+    const { url } = req.query;
+
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL er påkrævet'
+      });
+    }
+
+    // Validate URL format first
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url);
+      if (!parsedUrl.protocol.startsWith('http')) {
+        return res.json({
+          success: true,
+          data: {
+            valid: false,
+            reachable: false,
+            error: 'URL skal starte med http:// eller https://'
+          }
+        });
+      }
+    } catch (e) {
+      return res.json({
+        success: true,
+        data: {
+          valid: false,
+          reachable: false,
+          error: 'Ugyldig URL format'
+        }
+      });
+    }
+
+    // Try to fetch the URL with a HEAD request (faster than GET)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+
+    try {
+      const response = await fetch(url, {
+        method: 'HEAD',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Farlandet-LinkChecker/1.0'
+        },
+        redirect: 'follow'
+      });
+
+      clearTimeout(timeoutId);
+
+      // Check for common error status codes
+      if (response.status === 404) {
+        return res.json({
+          success: true,
+          data: {
+            valid: true,
+            reachable: false,
+            status: 404,
+            error: 'Siden blev ikke fundet (404)'
+          }
+        });
+      }
+
+      if (response.status === 403) {
+        // Some sites block HEAD requests but page exists
+        return res.json({
+          success: true,
+          data: {
+            valid: true,
+            reachable: true,
+            status: 403,
+            warning: 'Siden blokerer automatisk adgang, men eksisterer sandsynligvis'
+          }
+        });
+      }
+
+      if (response.status >= 500) {
+        return res.json({
+          success: true,
+          data: {
+            valid: true,
+            reachable: false,
+            status: response.status,
+            error: 'Serverfejl på destinationen'
+          }
+        });
+      }
+
+      if (response.ok || response.status === 301 || response.status === 302) {
+        return res.json({
+          success: true,
+          data: {
+            valid: true,
+            reachable: true,
+            status: response.status,
+            finalUrl: response.url
+          }
+        });
+      }
+
+      // Other status codes
+      return res.json({
+        success: true,
+        data: {
+          valid: true,
+          reachable: response.status < 400,
+          status: response.status
+        }
+      });
+
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+
+      if (fetchError.name === 'AbortError') {
+        return res.json({
+          success: true,
+          data: {
+            valid: true,
+            reachable: false,
+            error: 'Timeout - siden svarer ikke'
+          }
+        });
+      }
+
+      // Try GET request as fallback (some servers don't support HEAD)
+      try {
+        const getController = new AbortController();
+        const getTimeoutId = setTimeout(() => getController.abort(), 8000);
+
+        const getResponse = await fetch(url, {
+          method: 'GET',
+          signal: getController.signal,
+          headers: {
+            'User-Agent': 'Farlandet-LinkChecker/1.0'
+          },
+          redirect: 'follow'
+        });
+
+        clearTimeout(getTimeoutId);
+
+        if (getResponse.status === 404) {
+          return res.json({
+            success: true,
+            data: {
+              valid: true,
+              reachable: false,
+              status: 404,
+              error: 'Siden blev ikke fundet (404)'
+            }
+          });
+        }
+
+        return res.json({
+          success: true,
+          data: {
+            valid: true,
+            reachable: getResponse.ok,
+            status: getResponse.status
+          }
+        });
+
+      } catch (getError) {
+        clearTimeout(timeoutId);
+
+        return res.json({
+          success: true,
+          data: {
+            valid: true,
+            reachable: false,
+            error: 'Kunne ikke nå siden - tjek at URL er korrekt'
+          }
+        });
+      }
+    }
+
+  } catch (error) {
+    console.error('Error validating URL:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Kunne ikke validere URL'
+    });
+  }
+});
+
 // Tag search endpoint for autocomplete
 app.get('/api/tags/search', async (req, res) => {
   try {

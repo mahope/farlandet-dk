@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -12,6 +12,7 @@ import { Textarea } from '../components/ui/textarea'
 import { TagInput } from '../components/TagInput'
 import { useSEO } from '../hooks/useSEO'
 import { logger, measurePerformanceAsync } from '../utils/logger'
+import { api } from '../lib/api'
 import DOMPurify from 'dompurify'
 import {
   BookOpen,
@@ -26,7 +27,10 @@ import {
   CheckCircle,
   AlertCircle,
   Sparkles,
-  Check
+  Check,
+  Loader2,
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -179,6 +183,20 @@ export function SubmitResourcePage() {
   const [submittedData, setSubmittedData] = useState<ResourceFormData | null>(null)
   const [serverError, setServerError] = useState('')
 
+  // URL validation state
+  const [urlValidation, setUrlValidation] = useState<{
+    isChecking: boolean
+    isValid: boolean | null
+    isReachable: boolean | null
+    error?: string
+    warning?: string
+  }>({
+    isChecking: false,
+    isValid: null,
+    isReachable: null
+  })
+  const urlValidationDebounceRef = useRef<NodeJS.Timeout>()
+
   const {
     register,
     control,
@@ -203,9 +221,75 @@ export function SubmitResourcePage() {
   const watchedType = watch('type')
   const watchedTitle = watch('title')
   const watchedDescription = watch('description')
+  const watchedUrl = watch('url')
 
   const selectedType = resourceTypes.find(t => t.value === watchedType)
   const urlRequired = selectedType?.requiresUrl ?? true
+
+  // Debounced URL validation
+  const validateUrl = useCallback(async (url: string) => {
+    if (!url || url.trim() === '') {
+      setUrlValidation({ isChecking: false, isValid: null, isReachable: null })
+      return
+    }
+
+    // Basic URL format check first
+    try {
+      new URL(url)
+    } catch {
+      setUrlValidation({
+        isChecking: false,
+        isValid: false,
+        isReachable: null,
+        error: 'Ugyldig URL format'
+      })
+      return
+    }
+
+    setUrlValidation(prev => ({ ...prev, isChecking: true }))
+
+    try {
+      const response = await api.validateUrl(url)
+      if (response.success && response.data) {
+        setUrlValidation({
+          isChecking: false,
+          isValid: response.data.valid,
+          isReachable: response.data.reachable,
+          error: response.data.error,
+          warning: response.data.warning
+        })
+      }
+    } catch (err) {
+      setUrlValidation({
+        isChecking: false,
+        isValid: true,
+        isReachable: null,
+        warning: 'Kunne ikke verificere URL'
+      })
+    }
+  }, [])
+
+  // Trigger URL validation when URL changes
+  useEffect(() => {
+    if (urlValidationDebounceRef.current) {
+      clearTimeout(urlValidationDebounceRef.current)
+    }
+
+    if (!watchedUrl || watchedUrl.trim() === '') {
+      setUrlValidation({ isChecking: false, isValid: null, isReachable: null })
+      return
+    }
+
+    urlValidationDebounceRef.current = setTimeout(() => {
+      validateUrl(watchedUrl)
+    }, 800) // Wait 800ms after user stops typing
+
+    return () => {
+      if (urlValidationDebounceRef.current) {
+        clearTimeout(urlValidationDebounceRef.current)
+      }
+    }
+  }, [watchedUrl, validateUrl])
 
   // Calculate progress
   const requiredFieldsFilled = [
@@ -555,6 +639,17 @@ export function SubmitResourcePage() {
                           <Label htmlFor="url" className="text-sm font-medium text-foreground">
                             URL/Link {urlRequired ? '*' : '(valgfrit)'}
                           </Label>
+                          {watchedUrl && (
+                            <a
+                              href={watchedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline flex items-center gap-1"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Åbn link
+                            </a>
+                          )}
                         </div>
                         <div className="relative">
                           <Input
@@ -565,20 +660,62 @@ export function SubmitResourcePage() {
                             className={cn(
                               'pr-10',
                               getFieldState('url').showError && 'border-destructive focus-visible:ring-destructive',
-                              getFieldState('url').showSuccess && watch('url') && 'border-green-500 focus-visible:ring-green-500'
+                              urlValidation.isReachable === false && !errors.url && 'border-amber-500 focus-visible:ring-amber-500',
+                              urlValidation.isReachable === true && !errors.url && 'border-green-500 focus-visible:ring-green-500'
                             )}
                           />
-                          {getFieldState('url').showSuccess && watch('url') && (
-                            <Check className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
-                          )}
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            {urlValidation.isChecking && (
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                            {!urlValidation.isChecking && urlValidation.isReachable === true && (
+                              <Check className="h-4 w-4 text-green-500" />
+                            )}
+                            {!urlValidation.isChecking && urlValidation.isReachable === false && !errors.url && (
+                              <AlertTriangle className="h-4 w-4 text-amber-500" />
+                            )}
+                          </div>
                         </div>
+
+                        {/* Zod validation error */}
                         {errors.url && (
                           <p className="text-sm text-destructive flex items-center gap-1">
                             <AlertCircle className="h-3 w-3" />
                             {errors.url.message}
                           </p>
                         )}
-                        {!urlRequired && !errors.url && (
+
+                        {/* URL reachability feedback */}
+                        {!errors.url && watchedUrl && !urlValidation.isChecking && (
+                          <>
+                            {urlValidation.isReachable === false && urlValidation.error && (
+                              <div className="bg-amber-50 border border-amber-200 rounded-md p-2 text-sm">
+                                <p className="text-amber-800 flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  {urlValidation.error}
+                                </p>
+                                <p className="text-amber-600 text-xs mt-1">
+                                  Dobbelttjek at URL'en er korrekt før du indsender
+                                </p>
+                              </div>
+                            )}
+                            {urlValidation.warning && (
+                              <p className="text-xs text-amber-600 flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                {urlValidation.warning}
+                              </p>
+                            )}
+                            {urlValidation.isReachable === true && (
+                              <p className="text-xs text-green-600 flex items-center gap-1">
+                                <Check className="h-3 w-3" />
+                                URL'en er tilgængelig
+                              </p>
+                            )}
+                          </>
+                        )}
+
+                        {/* Hint for optional URL */}
+                        {!urlRequired && !errors.url && !watchedUrl && (
                           <p className="text-xs text-muted-foreground">
                             {selectedType?.urlHint}
                           </p>
