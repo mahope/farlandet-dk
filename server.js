@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import cors from 'cors';
@@ -472,10 +473,95 @@ app.delete('/api/admin/resources/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Get popular tags
+app.get('/api/tags', async (req, res) => {
+  try {
+    const { limit = 15 } = req.query;
+
+    const result = await db.query(`
+      SELECT t.id, t.name, t.slug,
+             COUNT(rt.resource_id) as resource_count
+      FROM tags t
+      JOIN resource_tags rt ON t.id = rt.tag_id
+      JOIN resources r ON rt.resource_id = r.id
+      WHERE r.status = 'approved'
+      GROUP BY t.id
+      HAVING COUNT(rt.resource_id) > 0
+      ORDER BY resource_count DESC, t.name ASC
+      LIMIT $1
+    `, [parseInt(limit)]);
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching tags:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Kunne ikke hente tags'
+    });
+  }
+});
+
+// Tag search endpoint for autocomplete
+app.get('/api/tags/search', async (req, res) => {
+  try {
+    const { q = '', limit = 10 } = req.query;
+
+    if (!q || q.length < 1) {
+      // Return popular tags if no query
+      const result = await db.query(`
+        SELECT t.id, t.name, t.slug,
+               COUNT(rt.resource_id) as resource_count
+        FROM tags t
+        LEFT JOIN resource_tags rt ON t.id = rt.tag_id
+        LEFT JOIN resources r ON rt.resource_id = r.id AND r.status = 'approved'
+        GROUP BY t.id
+        ORDER BY resource_count DESC, t.name ASC
+        LIMIT $1
+      `, [parseInt(limit)]);
+
+      return res.json({
+        success: true,
+        data: result.rows
+      });
+    }
+
+    // Search tags matching query
+    const searchTerm = `%${q.toLowerCase()}%`;
+    const result = await db.query(`
+      SELECT t.id, t.name, t.slug,
+             COUNT(rt.resource_id) as resource_count
+      FROM tags t
+      LEFT JOIN resource_tags rt ON t.id = rt.tag_id
+      LEFT JOIN resources r ON rt.resource_id = r.id AND r.status = 'approved'
+      WHERE LOWER(t.name) LIKE $1 OR LOWER(t.slug) LIKE $1
+      GROUP BY t.id
+      ORDER BY
+        CASE WHEN LOWER(t.name) LIKE $2 THEN 0 ELSE 1 END,
+        resource_count DESC,
+        t.name ASC
+      LIMIT $3
+    `, [searchTerm, `${q.toLowerCase()}%`, parseInt(limit)]);
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error searching tags:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Kunne ikke søge i tags'
+    });
+  }
+});
+
 // Public API endpoints
 app.get('/api/resources', async (req, res) => {
   try {
-    const { category, type, sort = 'newest', limit = 20, offset = 0 } = req.query;
+    const { category, type, tag, sort = 'newest', limit = 20, offset = 0 } = req.query;
 
     let query = `
       SELECT r.*, c.name as category_name, c.slug as category_slug, c.color as category_color,
@@ -503,6 +589,17 @@ app.get('/api/resources', async (req, res) => {
       paramIndex++;
     }
 
+    // Filter by tag
+    if (tag) {
+      query += ` AND r.id IN (
+        SELECT rt2.resource_id FROM resource_tags rt2
+        JOIN tags t2 ON rt2.tag_id = t2.id
+        WHERE t2.name ILIKE $${paramIndex} OR t2.slug = $${paramIndex}
+      )`;
+      params.push(tag);
+      paramIndex++;
+    }
+
     query += ' GROUP BY r.id, c.id';
 
     // Sorting
@@ -522,17 +619,36 @@ app.get('/api/resources', async (req, res) => {
 
     const result = await db.query(query, params);
 
-    // Get total count
-    let countQuery = 'SELECT COUNT(*) as total FROM resources WHERE status = $1';
-    const countParams = ['approved'];
+    // Get total count with all filters
+    let countQuery = `
+      SELECT COUNT(DISTINCT r.id) as total FROM resources r
+      LEFT JOIN categories c ON r.category_id = c.id
+      LEFT JOIN resource_tags rt ON r.id = rt.resource_id
+      LEFT JOIN tags t ON rt.tag_id = t.id
+      WHERE r.status = 'approved'
+    `;
+    const countParams = [];
+    let countParamIndex = 1;
+
     if (category) {
-      countQuery = `
-        SELECT COUNT(*) as total FROM resources r
-        LEFT JOIN categories c ON r.category_id = c.id
-        WHERE r.status = $1 AND c.slug = $2
-      `;
+      countQuery += ` AND c.slug = $${countParamIndex}`;
       countParams.push(category);
+      countParamIndex++;
     }
+    if (type) {
+      countQuery += ` AND r.resource_type = $${countParamIndex}`;
+      countParams.push(type);
+      countParamIndex++;
+    }
+    if (tag) {
+      countQuery += ` AND r.id IN (
+        SELECT rt2.resource_id FROM resource_tags rt2
+        JOIN tags t2 ON rt2.tag_id = t2.id
+        WHERE t2.name ILIKE $${countParamIndex} OR t2.slug = $${countParamIndex}
+      )`;
+      countParams.push(tag);
+    }
+
     const countResult = await db.query(countQuery, countParams);
 
     res.json({
@@ -541,7 +657,8 @@ app.get('/api/resources', async (req, res) => {
       meta: {
         total: parseInt(countResult.rows[0]?.total) || 0,
         limit: parseInt(limit),
-        offset: parseInt(offset)
+        offset: parseInt(offset),
+        filters: { category, type, tag, sort }
       }
     });
   } catch (error) {
@@ -592,10 +709,55 @@ app.get('/api/resources/:id', async (req, res) => {
   }
 });
 
+// Get related resources by tags (resources sharing tags with given resource)
+app.get('/api/resources/:id/related', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 6 } = req.query;
+
+    // Find resources that share tags with the given resource
+    // Ordered by number of matching tags (most relevant first)
+    const result = await db.query(`
+      WITH resource_tags_list AS (
+        SELECT tag_id FROM resource_tags WHERE resource_id = $1
+      ),
+      related AS (
+        SELECT r.id, r.title, r.description, r.resource_type, r.vote_score, r.created_at,
+               c.name as category_name, c.slug as category_slug, c.color as category_color,
+               COUNT(rt.tag_id) as matching_tags,
+               ARRAY_AGG(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL) as tags
+        FROM resources r
+        LEFT JOIN categories c ON r.category_id = c.id
+        LEFT JOIN resource_tags rt ON r.id = rt.resource_id
+        LEFT JOIN tags t ON rt.tag_id = t.id
+        WHERE r.status = 'approved'
+          AND r.id != $1
+          AND rt.tag_id IN (SELECT tag_id FROM resource_tags_list)
+        GROUP BY r.id, c.id
+        HAVING COUNT(rt.tag_id) >= 1
+      )
+      SELECT * FROM related
+      ORDER BY matching_tags DESC, vote_score DESC
+      LIMIT $2
+    `, [id, parseInt(limit)]);
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching related resources:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Kunne ikke hente relaterede ressourcer'
+    });
+  }
+});
+
 // Search resources
 app.get('/api/resources/search', async (req, res) => {
   try {
-    const { q, category, type, limit = 20, offset = 0 } = req.query;
+    const { q, category, type, tag, limit = 20, offset = 0 } = req.query;
 
     if (!q || q.trim().length < 2) {
       return res.status(400).json({
@@ -633,6 +795,17 @@ app.get('/api/resources/search', async (req, res) => {
     if (type) {
       query += ` AND r.resource_type = $${paramIndex}`;
       params.push(type);
+      paramIndex++;
+    }
+
+    // Filter by tag
+    if (tag) {
+      query += ` AND r.id IN (
+        SELECT rt2.resource_id FROM resource_tags rt2
+        JOIN tags t2 ON rt2.tag_id = t2.id
+        WHERE t2.name ILIKE $${paramIndex} OR t2.slug = $${paramIndex}
+      )`;
+      params.push(tag);
       paramIndex++;
     }
 
@@ -754,6 +927,9 @@ app.get('/api/categories/:slug/resources', async (req, res) => {
 });
 
 // Input validation middleware
+// Resource types where URL is optional
+const URL_OPTIONAL_TYPES = ['book', 'tip'];
+
 const validateResourceSubmission = [
   body('title')
     .trim()
@@ -766,18 +942,42 @@ const validateResourceSubmission = [
     .withMessage('Beskrivelse skal være mellem 10 og 2000 tegn')
     .escape(),
   body('url')
-    .isURL({ require_protocol: true })
-    .withMessage('URL er ikke gyldig')
-    .custom(value => {
-      const blockedDomains = ['malware.com', 'phishing.com', 'spam.com'];
-      try {
-        const domain = new URL(value).hostname.toLowerCase();
-        if (blockedDomains.some(blocked => domain.includes(blocked))) {
-          throw new Error('Dette domæne er ikke tilladt');
-        }
-      } catch (e) {
-        throw new Error('Ugyldig URL');
+    .custom((value, { req }) => {
+      const resourceType = req.body.type;
+      const isUrlOptional = URL_OPTIONAL_TYPES.includes(resourceType);
+
+      // If URL is optional and not provided, skip validation
+      if (isUrlOptional && (!value || value.trim() === '')) {
+        return true;
       }
+
+      // If URL is required and not provided
+      if (!isUrlOptional && (!value || value.trim() === '')) {
+        throw new Error('URL er påkrævet for denne ressourcetype');
+      }
+
+      // If URL is provided, validate it
+      if (value && value.trim() !== '') {
+        try {
+          const url = new URL(value);
+          if (!url.protocol.startsWith('http')) {
+            throw new Error('URL skal starte med http:// eller https://');
+          }
+
+          // Check blocked domains
+          const blockedDomains = ['malware.com', 'phishing.com', 'spam.com'];
+          const domain = url.hostname.toLowerCase();
+          if (blockedDomains.some(blocked => domain.includes(blocked))) {
+            throw new Error('Dette domæne er ikke tilladt');
+          }
+        } catch (e) {
+          if (e.message.includes('Invalid URL')) {
+            throw new Error('URL er ikke gyldig');
+          }
+          throw e;
+        }
+      }
+
       return true;
     }),
   body('type')

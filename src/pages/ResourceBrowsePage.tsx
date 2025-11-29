@@ -22,9 +22,10 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Sparkles
+  Sparkles,
+  Tag as TagIcon
 } from 'lucide-react'
-import { api, Resource, Category, ResourceType } from '@/lib/api'
+import { api, Resource, Category, ResourceType, Tag } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 const RESOURCE_TYPE_ICONS: Record<ResourceType, typeof BookOpen> = {
@@ -63,29 +64,33 @@ export function ResourceBrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [resources, setResources] = useState<Resource[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [popularTags, setPopularTags] = useState<Tag[]>([])
   const [loading, setLoading] = useState(true)
   const [totalCount, setTotalCount] = useState(0)
 
   // Get filter values from URL
   const currentCategory = searchParams.get('category') || ''
   const currentType = searchParams.get('type') || ''
+  const currentTag = searchParams.get('tag') || ''
   const currentSort = (searchParams.get('sort') as 'newest' | 'popular' | 'oldest') || 'newest'
   const currentPage = parseInt(searchParams.get('page') || '1', 10)
 
-  // Fetch resources and categories
+  // Fetch resources, categories and tags
   useEffect(() => {
     async function fetchData() {
       setLoading(true)
       try {
-        const [resourcesRes, categoriesRes] = await Promise.all([
+        const [resourcesRes, categoriesRes, tagsRes] = await Promise.all([
           api.getResources({
             category: currentCategory || undefined,
             type: currentType || undefined,
+            tag: currentTag || undefined,
             sort: currentSort,
             limit: ITEMS_PER_PAGE,
             offset: (currentPage - 1) * ITEMS_PER_PAGE
           }),
-          api.getCategories()
+          api.getCategories(),
+          api.getTags({ limit: 12 })
         ])
 
         if (resourcesRes.success && resourcesRes.data) {
@@ -96,6 +101,10 @@ export function ResourceBrowsePage() {
         if (categoriesRes.success && categoriesRes.data) {
           setCategories(categoriesRes.data)
         }
+
+        if (tagsRes.success && tagsRes.data) {
+          setPopularTags(tagsRes.data)
+        }
       } catch (error) {
         console.error('Failed to fetch resources:', error)
       } finally {
@@ -104,7 +113,7 @@ export function ResourceBrowsePage() {
     }
 
     fetchData()
-  }, [currentCategory, currentType, currentSort, currentPage])
+  }, [currentCategory, currentType, currentTag, currentSort, currentPage])
 
   // Update URL params
   const updateParams = (key: string, value: string) => {
@@ -208,10 +217,44 @@ export function ResourceBrowsePage() {
               </select>
             </div>
           </div>
+
+          {/* Popular Tags */}
+          {popularTags.length > 0 && (
+            <div className="pt-4 border-t border-border/50">
+              <label className="flex items-center gap-1.5 text-sm font-semibold mb-3 text-muted-foreground">
+                <TagIcon className="w-4 h-4" />
+                Populære tags
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {popularTags.map((tag) => (
+                  <button
+                    key={tag.id}
+                    onClick={() => updateParams('tag', currentTag === tag.name ? '' : tag.name)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-sm font-medium transition-all duration-300",
+                      currentTag === tag.name
+                        ? "bg-primary text-primary-foreground shadow-md scale-105"
+                        : "bg-muted/50 hover:bg-muted text-foreground hover:scale-105"
+                    )}
+                  >
+                    {tag.name}
+                    {tag.resource_count && (
+                      <span className={cn(
+                        "ml-1.5 text-xs",
+                        currentTag === tag.name ? "opacity-80" : "text-muted-foreground"
+                      )}>
+                        ({tag.resource_count})
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Active Filters */}
-        {(currentCategory || currentType) && (
+        {(currentCategory || currentType || currentTag) && (
           <div className="flex flex-wrap items-center gap-2 mb-8">
             <span className="text-sm text-muted-foreground">Aktive filtre:</span>
             {currentCategory && (
@@ -230,6 +273,18 @@ export function ResourceBrowsePage() {
                 {RESOURCE_TYPE_LABELS[currentType as ResourceType]}
                 <button
                   onClick={() => updateParams('type', '')}
+                  className="ml-1 p-0.5 hover:bg-foreground/10 rounded-full transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+            {currentTag && (
+              <Badge variant="secondary" className="gap-1.5 pr-1.5">
+                <TagIcon className="w-3 h-3" />
+                {currentTag}
+                <button
+                  onClick={() => updateParams('tag', '')}
                   className="ml-1 p-0.5 hover:bg-foreground/10 rounded-full transition-colors"
                 >
                   <X className="w-3 h-3" />
@@ -326,6 +381,12 @@ export function ResourceBrowsePage() {
                                 key={tag}
                                 variant="secondary"
                                 size="sm"
+                                className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  updateParams('tag', tag)
+                                }}
                               >
                                 {tag}
                               </Badge>

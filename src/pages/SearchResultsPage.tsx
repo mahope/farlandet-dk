@@ -20,9 +20,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  SearchX
+  SearchX,
+  Filter,
+  X,
+  Tag as TagIcon,
+  Sparkles
 } from 'lucide-react'
-import { api, Resource, ResourceType } from '@/lib/api'
+import { api, Resource, ResourceType, Category, Tag } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 const RESOURCE_TYPE_ICONS: Record<ResourceType, typeof BookOpen> = {
@@ -54,18 +58,45 @@ const ITEMS_PER_PAGE = 12
 export function SearchResultsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [resources, setResources] = useState<Resource[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [popularTags, setPopularTags] = useState<Tag[]>([])
   const [loading, setLoading] = useState(true)
   const [totalCount, setTotalCount] = useState(0)
   const [searchInput, setSearchInput] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
 
   // Get values from URL
   const query = searchParams.get('q') || ''
+  const currentCategory = searchParams.get('category') || ''
+  const currentType = searchParams.get('type') || ''
+  const currentTag = searchParams.get('tag') || ''
   const currentPage = parseInt(searchParams.get('page') || '1', 10)
 
   // Initialize search input from URL
   useEffect(() => {
     setSearchInput(query)
   }, [query])
+
+  // Fetch categories and tags
+  useEffect(() => {
+    async function fetchFilters() {
+      try {
+        const [categoriesRes, tagsRes] = await Promise.all([
+          api.getCategories(),
+          api.getTags({ limit: 10 })
+        ])
+        if (categoriesRes.success && categoriesRes.data) {
+          setCategories(categoriesRes.data)
+        }
+        if (tagsRes.success && tagsRes.data) {
+          setPopularTags(tagsRes.data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch filters:', error)
+      }
+    }
+    fetchFilters()
+  }, [])
 
   // Fetch search results
   useEffect(() => {
@@ -81,6 +112,9 @@ export function SearchResultsPage() {
       try {
         const response = await api.searchResources({
           q: query,
+          category: currentCategory || undefined,
+          type: currentType || undefined,
+          tag: currentTag || undefined,
           limit: ITEMS_PER_PAGE,
           offset: (currentPage - 1) * ITEMS_PER_PAGE
         })
@@ -97,7 +131,30 @@ export function SearchResultsPage() {
     }
 
     fetchResults()
-  }, [query, currentPage])
+  }, [query, currentCategory, currentType, currentTag, currentPage])
+
+  // Update URL params
+  const updateParams = (key: string, value: string) => {
+    const newParams = new URLSearchParams(searchParams)
+    if (value) {
+      newParams.set(key, value)
+    } else {
+      newParams.delete(key)
+    }
+    // Reset to page 1 when filters change
+    if (key !== 'page') {
+      newParams.delete('page')
+    }
+    setSearchParams(newParams)
+  }
+
+  const clearFilters = () => {
+    const newParams = new URLSearchParams()
+    if (query) newParams.set('q', query)
+    setSearchParams(newParams)
+  }
+
+  const hasActiveFilters = currentCategory || currentType || currentTag
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -136,7 +193,7 @@ export function SearchResultsPage() {
         </div>
 
         {/* Search Form */}
-        <form onSubmit={handleSearch} className="mb-8">
+        <form onSubmit={handleSearch} className="mb-6">
           <div className="relative max-w-2xl">
             <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -161,6 +218,140 @@ export function SearchResultsPage() {
           )}
         </form>
 
+        {/* Filter Toggle Button */}
+        {query && (
+          <div className="mb-6">
+            <Button
+              variant={showFilters ? "default" : "outline"}
+              onClick={() => setShowFilters(!showFilters)}
+              className="gap-2"
+            >
+              <Filter className="w-4 h-4" />
+              Filtre
+              {hasActiveFilters && (
+                <Badge variant="secondary" className="ml-1 px-1.5 py-0.5 text-xs">
+                  {[currentCategory, currentType, currentTag].filter(Boolean).length}
+                </Badge>
+              )}
+            </Button>
+          </div>
+        )}
+
+        {/* Filters Panel */}
+        {showFilters && query && (
+          <div className="bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 p-6 mb-6 animate-bounce-in">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              {/* Category Filter */}
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-semibold mb-2 text-muted-foreground">
+                  <Filter className="w-4 h-4" />
+                  Kategori
+                </label>
+                <select
+                  value={currentCategory}
+                  onChange={(e) => updateParams('category', e.target.value)}
+                  className="w-full px-4 py-2.5 bg-background border border-border/50 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                >
+                  <option value="">Alle kategorier</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.slug}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Type Filter */}
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-semibold mb-2 text-muted-foreground">
+                  <Sparkles className="w-4 h-4" />
+                  Type
+                </label>
+                <select
+                  value={currentType}
+                  onChange={(e) => updateParams('type', e.target.value)}
+                  className="w-full px-4 py-2.5 bg-background border border-border/50 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                >
+                  <option value="">Alle typer</option>
+                  {Object.entries(RESOURCE_TYPE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tag Filter */}
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-semibold mb-2 text-muted-foreground">
+                  <TagIcon className="w-4 h-4" />
+                  Tag
+                </label>
+                <select
+                  value={currentTag}
+                  onChange={(e) => updateParams('tag', e.target.value)}
+                  className="w-full px-4 py-2.5 bg-background border border-border/50 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                >
+                  <option value="">Alle tags</option>
+                  {popularTags.map((tag) => (
+                    <option key={tag.id} value={tag.name}>
+                      {tag.name} {tag.resource_count && `(${tag.resource_count})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
+                <X className="w-4 h-4 mr-1" />
+                Ryd filtre
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Active Filters Badges */}
+        {hasActiveFilters && (
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            <span className="text-sm text-muted-foreground">Aktive filtre:</span>
+            {currentCategory && (
+              <Badge variant="secondary" className="gap-1.5 pr-1.5">
+                {categories.find(c => c.slug === currentCategory)?.name}
+                <button
+                  onClick={() => updateParams('category', '')}
+                  className="ml-1 p-0.5 hover:bg-foreground/10 rounded-full transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+            {currentType && (
+              <Badge variant="secondary" className="gap-1.5 pr-1.5">
+                {RESOURCE_TYPE_LABELS[currentType as ResourceType]}
+                <button
+                  onClick={() => updateParams('type', '')}
+                  className="ml-1 p-0.5 hover:bg-foreground/10 rounded-full transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+            {currentTag && (
+              <Badge variant="secondary" className="gap-1.5 pr-1.5">
+                <TagIcon className="w-3 h-3" />
+                {currentTag}
+                <button
+                  onClick={() => updateParams('tag', '')}
+                  className="ml-1 p-0.5 hover:bg-foreground/10 rounded-full transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+          </div>
+        )}
+
         {/* Loading State */}
         {loading && (
           <div className="flex items-center justify-center py-20">
@@ -184,31 +375,49 @@ export function SearchResultsPage() {
         {/* Empty Results State */}
         {!loading && query && resources.length === 0 && (
           <div className="text-center py-20">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-              <SearchX className="w-8 h-8 text-muted-foreground" />
+            <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-primary/10 flex items-center justify-center">
+              <SearchX className="w-10 h-10 text-primary" />
             </div>
-            <h3 className="text-lg font-medium mb-2">Ingen resultater</h3>
-            <p className="text-muted-foreground mb-4">
+            <h3 className="text-xl font-bold mb-3">Ingen resultater fundet</h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
               Vi fandt ingen ressourcer der matcher "{query}"
+              {hasActiveFilters && " med de valgte filtre"}
             </p>
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <p>Prøv at:</p>
-              <ul className="list-disc list-inside">
-                <li>Tjekke stavningen</li>
-                <li>Bruge andre søgeord</li>
-                <li>Søge med færre ord</li>
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                className="mb-4"
+                onClick={clearFilters}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Ryd filtre og prøv igen
+              </Button>
+            )}
+            <div className="space-y-3 text-sm text-muted-foreground mb-8">
+              <p className="font-medium">Tips til bedre søgeresultater:</p>
+              <ul className="space-y-1">
+                <li>Tjek stavningen af dine søgeord</li>
+                <li>Prøv med andre eller færre søgeord</li>
+                <li>Brug mere generelle termer</li>
               </ul>
             </div>
-            <Button
-              variant="outline"
-              className="mt-6"
-              onClick={() => {
-                setSearchInput('')
-                setSearchParams({})
-              }}
-            >
-              Ryd søgning
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearchInput('')
+                  setSearchParams({})
+                }}
+              >
+                Ryd søgning
+              </Button>
+              <Button asChild variant="accent">
+                <Link to={`/submit?title=${encodeURIComponent(query)}`}>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Del en ressource om "{query}"
+                </Link>
+              </Button>
+            </div>
           </div>
         )}
 

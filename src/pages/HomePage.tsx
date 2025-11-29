@@ -1,20 +1,53 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Layout } from '@/components/layout/Layout'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
-import { SkeletonCard } from '../components/ui/skeleton'
-import { ArrowRight, Heart, Users, BookOpen, Star, Zap, Globe, Shield, Sparkles, TrendingUp } from 'lucide-react'
+import { SkeletonCard, SkeletonResourceCard } from '../components/ui/skeleton'
+import { ArrowRight, Heart, Users, BookOpen, Star, Zap, Globe, Shield, Sparkles, TrendingUp, Flame, Tag as TagIcon } from 'lucide-react'
 import { useCategories } from '../hooks/useCategories'
-import { useResources } from '../hooks/useResources'
+import { api, Resource, Tag } from '../lib/api'
 
 export function HomePage() {
   const { categories, loading: categoriesLoading } = useCategories()
-  const { resources } = useResources('approved')
+  const [recentResources, setRecentResources] = useState<Resource[]>([])
+  const [popularResources, setPopularResources] = useState<Resource[]>([])
+  const [popularTags, setPopularTags] = useState<Tag[]>([])
+  const [resourcesLoading, setResourcesLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchData() {
+      setResourcesLoading(true)
+      try {
+        const [recentRes, popularRes, tagsRes] = await Promise.all([
+          api.getResources({ sort: 'newest', limit: 6 }),
+          api.getResources({ sort: 'popular', limit: 6 }),
+          api.getTags({ limit: 10 })
+        ])
+
+        if (recentRes.success && recentRes.data) {
+          setRecentResources(recentRes.data)
+        }
+        if (popularRes.success && popularRes.data) {
+          setPopularResources(popularRes.data)
+        }
+        if (tagsRes.success && tagsRes.data) {
+          setPopularTags(tagsRes.data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch homepage data:', error)
+      } finally {
+        setResourcesLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
 
   const featuredStats = [
     { icon: Users, label: 'Aktive fædre', value: '1.2k+', color: 'primary' },
-    { icon: BookOpen, label: 'Ressourcer delt', value: resources.length.toString(), color: 'secondary' },
+    { icon: BookOpen, label: 'Ressourcer delt', value: (recentResources.length + popularResources.length).toString() + '+', color: 'secondary' },
     { icon: Heart, label: 'Hjælpsomme svar', value: '2.3k+', color: 'accent' },
     { icon: Star, label: 'Bedømmelser', value: '4.8/5', color: 'warning' },
   ]
@@ -206,6 +239,132 @@ export function HomePage() {
         </div>
       </section>
 
+      {/* Popular Resources Section */}
+      <section className="py-24 bg-card/50">
+        <div className="container mx-auto px-4 lg:px-6">
+          <div className="text-center mb-16">
+            <Badge variant="accent" size="lg" className="mb-4">
+              <Flame className="h-4 w-4 mr-1" />
+              Populære
+            </Badge>
+            <h2 className="text-display-md font-bold text-foreground mb-4">
+              Mest populære ressourcer
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              De ressourcer som fællesskabet har fundet mest værdifulde
+            </p>
+          </div>
+
+          {resourcesLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3].map((i) => (
+                <SkeletonResourceCard key={i} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+              {popularResources.slice(0, 6).map((resource, index) => (
+                <Link to={`/resources/${resource.id}`} key={resource.id}>
+                  <Card
+                    glow
+                    className="h-full cursor-pointer animate-bounce-in"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <CardHeader>
+                      <div className="flex items-center justify-between mb-2">
+                        {resource.category_name && (
+                          <Badge
+                            variant="outline"
+                            style={{
+                              borderColor: resource.category_color,
+                              color: resource.category_color
+                            }}
+                          >
+                            {resource.category_name}
+                          </Badge>
+                        )}
+                        <div className="flex items-center gap-1.5 text-accent">
+                          <Heart className="h-4 w-4 fill-accent" />
+                          <span className="font-bold tabular-nums">{resource.vote_score}</span>
+                        </div>
+                      </div>
+                      <CardTitle className="line-clamp-2 text-lg">
+                        {resource.title}
+                      </CardTitle>
+                      <CardDescription className="line-clamp-3 leading-relaxed">
+                        {resource.description}
+                      </CardDescription>
+                    </CardHeader>
+                    {resource.tags && resource.tags.length > 0 && (
+                      <CardContent className="pt-0">
+                        <div className="flex flex-wrap gap-1.5">
+                          {resource.tags.slice(0, 3).map((tag) => (
+                            <Badge key={tag} variant="secondary" size="sm">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    )}
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          <div className="text-center">
+            <Button asChild variant="accent" size="lg">
+              <Link to="/resources?sort=popular">
+                Se alle populære
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Popular Tags Cloud */}
+      {popularTags.length > 0 && (
+        <section className="py-16 bg-gradient-to-br from-background to-secondary/5">
+          <div className="container mx-auto px-4 lg:px-6">
+            <div className="text-center mb-10">
+              <Badge variant="secondary" size="lg" className="mb-4">
+                <TagIcon className="h-4 w-4 mr-1" />
+                Tags
+              </Badge>
+              <h2 className="text-display-sm font-bold text-foreground mb-3">
+                Populære emner
+              </h2>
+              <p className="text-muted-foreground max-w-xl mx-auto">
+                Udforsk ressourcer efter emne
+              </p>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-3 max-w-3xl mx-auto">
+              {popularTags.map((tag, index) => (
+                <Link
+                  key={tag.id}
+                  to={`/resources?tag=${encodeURIComponent(tag.name)}`}
+                  className="animate-bounce-in"
+                  style={{ animationDelay: `${index * 30}ms` }}
+                >
+                  <Badge
+                    variant="outline"
+                    size="lg"
+                    className="hover:bg-primary hover:text-primary-foreground hover:border-primary hover:scale-110 transition-all duration-300 cursor-pointer px-4 py-2"
+                  >
+                    {tag.name}
+                    {tag.resource_count && (
+                      <span className="ml-2 text-xs opacity-70">({tag.resource_count})</span>
+                    )}
+                  </Badge>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Recent Resources Section */}
       <section className="py-24 bg-card/50">
         <div className="container mx-auto px-4 lg:px-6">
@@ -218,41 +377,66 @@ export function HomePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            {resources.slice(0, 6).map((resource, index) => (
-              <Link to={`/resources/${resource.id}`} key={resource.id}>
-                <Card
-                  glow
-                  className="h-full cursor-pointer animate-bounce-in"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <CardHeader>
-                    <CardTitle className="line-clamp-2 text-lg">
-                      {resource.title}
-                    </CardTitle>
-                    <CardDescription className="line-clamp-3 leading-relaxed">
-                      {resource.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex items-center justify-between">
-                      <Badge variant="default">
-                        {resource.category?.name}
-                      </Badge>
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Heart className="h-4 w-4 text-accent" />
-                        <span className="font-semibold tabular-nums">{resource.votes}</span>
+          {resourcesLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3].map((i) => (
+                <SkeletonResourceCard key={i} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+              {recentResources.slice(0, 6).map((resource, index) => (
+                <Link to={`/resources/${resource.id}`} key={resource.id}>
+                  <Card
+                    glow
+                    className="h-full cursor-pointer animate-bounce-in"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <CardHeader>
+                      <div className="flex items-center justify-between mb-2">
+                        {resource.category_name && (
+                          <Badge
+                            variant="outline"
+                            style={{
+                              borderColor: resource.category_color,
+                              color: resource.category_color
+                            }}
+                          >
+                            {resource.category_name}
+                          </Badge>
+                        )}
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <Heart className="h-4 w-4 text-accent" />
+                          <span className="font-semibold tabular-nums">{resource.vote_score}</span>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
+                      <CardTitle className="line-clamp-2 text-lg">
+                        {resource.title}
+                      </CardTitle>
+                      <CardDescription className="line-clamp-3 leading-relaxed">
+                        {resource.description}
+                      </CardDescription>
+                    </CardHeader>
+                    {resource.tags && resource.tags.length > 0 && (
+                      <CardContent className="pt-0">
+                        <div className="flex flex-wrap gap-1.5">
+                          {resource.tags.slice(0, 3).map((tag) => (
+                            <Badge key={tag} variant="secondary" size="sm">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    )}
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
 
           <div className="text-center">
             <Button asChild variant="outline" size="lg">
-              <Link to="/categories">
+              <Link to="/resources">
                 Se alle ressourcer
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>

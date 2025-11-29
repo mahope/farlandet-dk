@@ -53,6 +53,7 @@ export interface Tag {
   id: number
   name: string
   slug: string
+  resource_count?: number
   created_at: string
 }
 
@@ -127,6 +128,7 @@ class ApiClient {
   async getResources(params: {
     category?: string
     type?: string
+    tag?: string
     sort?: 'newest' | 'popular' | 'oldest'
     limit?: number
     offset?: number
@@ -135,6 +137,7 @@ class ApiClient {
 
     if (params.category) searchParams.append('category', params.category)
     if (params.type) searchParams.append('type', params.type)
+    if (params.tag) searchParams.append('tag', params.tag)
     if (params.sort) searchParams.append('sort', params.sort)
     if (params.limit) searchParams.append('limit', params.limit.toString())
     if (params.offset) searchParams.append('offset', params.offset.toString())
@@ -151,6 +154,7 @@ class ApiClient {
     q: string
     category?: string
     type?: string
+    tag?: string
     limit?: number
     offset?: number
   }): Promise<ApiResponse<Resource[]>> {
@@ -159,6 +163,7 @@ class ApiClient {
     searchParams.append('q', params.q)
     if (params.category) searchParams.append('category', params.category)
     if (params.type) searchParams.append('type', params.type)
+    if (params.tag) searchParams.append('tag', params.tag)
     if (params.limit) searchParams.append('limit', params.limit.toString())
     if (params.offset) searchParams.append('offset', params.offset.toString())
 
@@ -234,6 +239,30 @@ class ApiClient {
     return this.request<void>(`/categories/${id}`, {
       method: 'DELETE',
     })
+  }
+
+  // Tags
+  async getTags(params: { limit?: number } = {}): Promise<ApiResponse<Tag[]>> {
+    const searchParams = new URLSearchParams()
+    if (params.limit) searchParams.append('limit', params.limit.toString())
+    const query = searchParams.toString()
+    return this.request<Tag[]>(`/tags${query ? `?${query}` : ''}`)
+  }
+
+  async searchTags(params: { q?: string; limit?: number } = {}): Promise<ApiResponse<Tag[]>> {
+    const searchParams = new URLSearchParams()
+    if (params.q) searchParams.append('q', params.q)
+    if (params.limit) searchParams.append('limit', params.limit.toString())
+    const query = searchParams.toString()
+    return this.request<Tag[]>(`/tags/search${query ? `?${query}` : ''}`)
+  }
+
+  // Related resources
+  async getRelatedResources(id: number, params: { limit?: number } = {}): Promise<ApiResponse<Resource[]>> {
+    const searchParams = new URLSearchParams()
+    if (params.limit) searchParams.append('limit', params.limit.toString())
+    const query = searchParams.toString()
+    return this.request<Resource[]>(`/resources/${id}/related${query ? `?${query}` : ''}`)
   }
 
   // Authentication

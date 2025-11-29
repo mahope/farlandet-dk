@@ -60,6 +60,7 @@ export function ResourceDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [relatedResources, setRelatedResources] = useState<Resource[]>([])
+  const [categoryResources, setCategoryResources] = useState<Resource[]>([])
   const [copied, setCopied] = useState(false)
   const { isActive: showConfetti, trigger: triggerConfetti } = useConfetti()
 
@@ -76,15 +77,24 @@ export function ResourceDetailPage() {
         if (response.success && response.data) {
           setResource(response.data)
 
-          // Fetch related resources from same category
+          // Fetch related resources via tags (primary)
+          const tagRelatedRes = await api.getRelatedResources(parseInt(id, 10), { limit: 4 })
+          if (tagRelatedRes.success && tagRelatedRes.data) {
+            setRelatedResources(tagRelatedRes.data.slice(0, 3))
+          }
+
+          // Fetch related resources from same category (fallback)
           if (response.data.category_slug) {
-            const relatedRes = await api.getCategoryResources(response.data.category_slug, {
+            const categoryRes = await api.getCategoryResources(response.data.category_slug, {
               limit: 4
             })
-            if (relatedRes.success && relatedRes.data) {
-              // Filter out current resource
-              setRelatedResources(
-                relatedRes.data.resources.filter(r => r.id !== parseInt(id, 10)).slice(0, 3)
+            if (categoryRes.success && categoryRes.data) {
+              // Filter out current resource and any already in tag-related
+              const tagRelatedIds = new Set((tagRelatedRes.data || []).map(r => r.id))
+              setCategoryResources(
+                categoryRes.data.resources
+                  .filter(r => r.id !== parseInt(id, 10) && !tagRelatedIds.has(r.id))
+                  .slice(0, 3)
               )
             }
           }
@@ -407,13 +417,46 @@ export function ResourceDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Related Resources */}
+            {/* Tag-Related Resources */}
             {relatedResources.length > 0 && (
               <Card interactive={false}>
                 <CardContent className="p-6">
-                  <h3 className="font-bold text-lg mb-4">Lignende ressourcer</h3>
+                  <h3 className="font-bold text-lg mb-4">Relateret via tags</h3>
                   <div className="space-y-3">
                     {relatedResources.map((related) => (
+                      <Link
+                        key={related.id}
+                        to={`/resources/${related.id}`}
+                        className="block p-4 rounded-2xl hover:bg-primary/5 transition-all duration-300 group"
+                      >
+                        <h4 className="font-semibold text-sm line-clamp-2 mb-2 group-hover:text-primary transition-colors">
+                          {related.title}
+                        </h4>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Heart className={cn(
+                              "w-3 h-3",
+                              related.vote_score > 0 && "text-accent"
+                            )} />
+                            {related.vote_score}
+                          </span>
+                          <span>·</span>
+                          <span>{RESOURCE_TYPE_LABELS[related.resource_type]}</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Category-Related Resources */}
+            {categoryResources.length > 0 && (
+              <Card interactive={false}>
+                <CardContent className="p-6">
+                  <h3 className="font-bold text-lg mb-4">Fra samme kategori</h3>
+                  <div className="space-y-3">
+                    {categoryResources.map((related) => (
                       <Link
                         key={related.id}
                         to={`/resources/${related.id}`}
