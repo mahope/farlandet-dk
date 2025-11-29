@@ -4,6 +4,9 @@ import { Layout } from '@/components/layout/Layout'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { VoteButton } from '@/components/gamification/vote-button'
+import { Confetti, useConfetti } from '@/components/gamification/confetti'
 import {
   ExternalLink,
   Heart,
@@ -19,8 +22,9 @@ import {
   Film,
   Tv,
   Link as LinkIcon,
-  Loader2,
-  AlertCircle
+  AlertCircle,
+  Check,
+  Copy
 } from 'lucide-react'
 import { api, Resource, ResourceType } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -56,6 +60,8 @@ export function ResourceDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [relatedResources, setRelatedResources] = useState<Resource[]>([])
+  const [copied, setCopied] = useState(false)
+  const { isActive: showConfetti, trigger: triggerConfetti } = useConfetti()
 
   useEffect(() => {
     async function fetchResource() {
@@ -104,14 +110,20 @@ export function ResourceDetailPage() {
           text: resource.description,
           url: window.location.href
         })
-      } catch (err) {
+      } catch {
         // User cancelled or share failed
-        console.log('Share cancelled')
       }
     } else {
       // Fallback: copy to clipboard
       await navigator.clipboard.writeText(window.location.href)
-      alert('Link kopieret til udklipsholder!')
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const handleVote = async (voted: boolean) => {
+    if (voted) {
+      triggerConfetti()
     }
   }
 
@@ -126,9 +138,39 @@ export function ResourceDetailPage() {
   if (loading) {
     return (
       <Layout>
-        <div className="container mx-auto px-4 py-20">
-          <div className="flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="container mx-auto px-4 py-12">
+          <Button variant="ghost" className="mb-6">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Tilbage
+          </Button>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2">
+              <Card>
+                <CardContent className="p-8 space-y-6">
+                  <div className="flex gap-2">
+                    <Skeleton className="h-6 w-24 rounded-full" />
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                  </div>
+                  <Skeleton className="h-10 w-3/4" />
+                  <div className="flex gap-4">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-5 w-24" />
+                  </div>
+                  <Skeleton className="h-32 w-full" />
+                </CardContent>
+              </Card>
+            </div>
+            <div className="space-y-6">
+              <Card>
+                <CardContent className="p-6 space-y-4">
+                  <Skeleton className="h-6 w-40" />
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-2/3" />
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </Layout>
@@ -139,15 +181,15 @@ export function ResourceDetailPage() {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-20">
-          <div className="text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
-              <AlertCircle className="w-8 h-8 text-destructive" />
+          <div className="text-center max-w-md mx-auto">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-destructive/10 flex items-center justify-center">
+              <AlertCircle className="w-10 h-10 text-destructive" />
             </div>
-            <h1 className="text-2xl font-bold mb-2">Ressource ikke fundet</h1>
-            <p className="text-muted-foreground mb-6">
+            <h1 className="text-2xl font-bold mb-3">Ressource ikke fundet</h1>
+            <p className="text-muted-foreground mb-8">
               {error || 'Den ressource du leder efter eksisterer ikke.'}
             </p>
-            <Button onClick={() => navigate('/resources')}>
+            <Button onClick={() => navigate('/resources')} size="lg">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Tilbage til ressourcer
             </Button>
@@ -161,29 +203,31 @@ export function ResourceDetailPage() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
+      <Confetti active={showConfetti} />
+
+      <div className="container mx-auto px-4 py-12">
         {/* Back Button */}
         <Button
           variant="ghost"
           onClick={() => navigate(-1)}
-          className="mb-6"
+          className="mb-6 group"
         >
-          <ArrowLeft className="w-4 h-4 mr-2" />
+          <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
           Tilbage
         </Button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2">
-            <Card>
+            <Card interactive={false}>
               <CardContent className="p-8">
                 {/* Header */}
-                <div className="flex flex-wrap items-center gap-3 mb-4">
+                <div className="flex flex-wrap items-center gap-3 mb-6">
                   {resource.category_name && (
                     <Link to={`/resources?category=${resource.category_slug}`}>
                       <Badge
                         variant="outline"
-                        className="hover:bg-accent/10 cursor-pointer"
+                        className="hover:scale-105 transition-transform cursor-pointer"
                         style={{
                           borderColor: resource.category_color,
                           color: resource.category_color
@@ -193,40 +237,40 @@ export function ResourceDetailPage() {
                       </Badge>
                     </Link>
                   )}
-                  <Badge variant="secondary" className="flex items-center gap-1">
-                    <TypeIcon className="w-3 h-3" />
+                  <Badge variant="secondary" className="flex items-center gap-1.5">
+                    <TypeIcon className="w-3.5 h-3.5" />
                     {RESOURCE_TYPE_LABELS[resource.resource_type]}
                   </Badge>
                 </div>
 
                 {/* Title */}
-                <h1 className="text-display-sm mb-4">{resource.title}</h1>
+                <h1 className="text-display-sm font-bold mb-6">{resource.title}</h1>
 
                 {/* Meta Info */}
-                <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-6 pb-6 border-b border-border">
-                  <span className="flex items-center">
-                    <Clock className="w-4 h-4 mr-1" />
+                <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground mb-8 pb-8 border-b border-border/50">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-4 h-4" />
                     {formatDate(resource.created_at)}
                   </span>
-                  <span className="flex items-center">
+                  <span className="flex items-center gap-1.5">
                     <Heart className={cn(
-                      "w-4 h-4 mr-1",
+                      "w-4 h-4",
                       resource.vote_score > 0 && "text-accent fill-accent"
                     )} />
-                    {resource.vote_score} stemmer
+                    <span className="font-semibold">{resource.vote_score}</span> stemmer
                   </span>
                   {resource.view_count !== undefined && (
-                    <span className="flex items-center">
-                      <Eye className="w-4 h-4 mr-1" />
-                      {resource.view_count} visninger
+                    <span className="flex items-center gap-1.5">
+                      <Eye className="w-4 h-4" />
+                      <span className="font-semibold">{resource.view_count}</span> visninger
                     </span>
                   )}
                 </div>
 
                 {/* Description */}
                 {resource.description && (
-                  <div className="prose prose-neutral dark:prose-invert max-w-none mb-6">
-                    <p className="text-lg leading-relaxed whitespace-pre-wrap">
+                  <div className="mb-8">
+                    <p className="text-lg leading-relaxed whitespace-pre-wrap text-foreground/90">
                       {resource.description}
                     </p>
                   </div>
@@ -234,16 +278,20 @@ export function ResourceDetailPage() {
 
                 {/* Tags */}
                 {resource.tags && resource.tags.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="text-sm font-medium text-muted-foreground mb-2">Tags</h3>
+                  <div className="mb-8">
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3">Tags</h3>
                     <div className="flex flex-wrap gap-2">
                       {resource.tags.map((tag) => (
                         <Link
                           key={tag}
                           to={`/resources?tag=${encodeURIComponent(tag)}`}
-                          className="text-sm px-3 py-1 bg-secondary/50 hover:bg-secondary rounded-full text-secondary-foreground transition-colors"
                         >
-                          {tag}
+                          <Badge
+                            variant="secondary"
+                            className="hover:scale-105 transition-transform cursor-pointer"
+                          >
+                            {tag}
+                          </Badge>
                         </Link>
                       ))}
                     </div>
@@ -251,25 +299,43 @@ export function ResourceDetailPage() {
                 )}
 
                 {/* Actions */}
-                <div className="flex flex-wrap gap-3 pt-6 border-t border-border">
+                <div className="flex flex-wrap items-center gap-4 pt-8 border-t border-border/50">
                   {resource.url && (
                     <Button
                       asChild
-                      className="btn-accent"
+                      variant="accent"
+                      size="lg"
+                      className="group"
                     >
                       <a
                         href={resource.url}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        <ExternalLink className="w-4 h-4 mr-2" />
+                        <ExternalLink className="w-5 h-5 mr-2 group-hover:rotate-12 transition-transform" />
                         Åbn ressource
                       </a>
                     </Button>
                   )}
-                  <Button variant="outline" onClick={handleShare}>
-                    <Share2 className="w-4 h-4 mr-2" />
-                    Del
+
+                  <VoteButton
+                    initialVotes={resource.vote_score}
+                    onVote={handleVote}
+                    size="lg"
+                  />
+
+                  <Button variant="outline" onClick={handleShare} className="gap-2">
+                    {copied ? (
+                      <>
+                        <Check className="w-4 h-4 text-success" />
+                        Kopieret!
+                      </>
+                    ) : (
+                      <>
+                        <Share2 className="w-4 h-4" />
+                        Del
+                      </>
+                    )}
                   </Button>
                 </div>
               </CardContent>
@@ -279,32 +345,32 @@ export function ResourceDetailPage() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Quick Info Card */}
-            <Card>
+            <Card interactive={false}>
               <CardContent className="p-6">
-                <h3 className="font-semibold mb-4">Om denne ressource</h3>
-                <dl className="space-y-3 text-sm">
-                  <div className="flex justify-between">
+                <h3 className="font-bold text-lg mb-4">Om denne ressource</h3>
+                <dl className="space-y-4 text-sm">
+                  <div className="flex justify-between items-center py-2 border-b border-border/50">
                     <dt className="text-muted-foreground">Type</dt>
-                    <dd className="font-medium flex items-center">
-                      <TypeIcon className="w-4 h-4 mr-1" />
+                    <dd className="font-semibold flex items-center gap-1.5">
+                      <TypeIcon className="w-4 h-4 text-primary" />
                       {RESOURCE_TYPE_LABELS[resource.resource_type]}
                     </dd>
                   </div>
                   {resource.category_name && (
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center py-2 border-b border-border/50">
                       <dt className="text-muted-foreground">Kategori</dt>
-                      <dd className="font-medium">{resource.category_name}</dd>
+                      <dd className="font-semibold">{resource.category_name}</dd>
                     </div>
                   )}
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center py-2 border-b border-border/50">
                     <dt className="text-muted-foreground">Tilføjet</dt>
-                    <dd className="font-medium">{formatDate(resource.created_at)}</dd>
+                    <dd className="font-semibold">{formatDate(resource.created_at)}</dd>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center py-2">
                     <dt className="text-muted-foreground">Popularitet</dt>
-                    <dd className="font-medium flex items-center">
+                    <dd className="font-semibold flex items-center gap-1.5">
                       <Heart className={cn(
-                        "w-4 h-4 mr-1",
+                        "w-4 h-4",
                         resource.vote_score > 0 && "text-accent fill-accent"
                       )} />
                       {resource.vote_score}
@@ -314,36 +380,65 @@ export function ResourceDetailPage() {
               </CardContent>
             </Card>
 
+            {/* Copy Link Card */}
+            <Card interactive={false}>
+              <CardContent className="p-6">
+                <h3 className="font-bold text-lg mb-4">Del denne ressource</h3>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={window.location.href}
+                    readOnly
+                    className="flex-1 px-3 py-2 bg-muted/50 rounded-xl text-sm truncate border border-border/50"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.href)
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 2000)
+                    }}
+                    className="shrink-0"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Related Resources */}
             {relatedResources.length > 0 && (
-              <Card>
+              <Card interactive={false}>
                 <CardContent className="p-6">
-                  <h3 className="font-semibold mb-4">Lignende ressourcer</h3>
+                  <h3 className="font-bold text-lg mb-4">Lignende ressourcer</h3>
                   <div className="space-y-3">
                     {relatedResources.map((related) => (
                       <Link
                         key={related.id}
                         to={`/resources/${related.id}`}
-                        className="block p-3 rounded-lg hover:bg-accent/10 transition-colors"
+                        className="block p-4 rounded-2xl hover:bg-primary/5 transition-all duration-300 group"
                       >
-                        <h4 className="font-medium text-sm line-clamp-2 mb-1">
+                        <h4 className="font-semibold text-sm line-clamp-2 mb-2 group-hover:text-primary transition-colors">
                           {related.title}
                         </h4>
-                        <div className="flex items-center text-xs text-muted-foreground">
-                          <Heart className={cn(
-                            "w-3 h-3 mr-1",
-                            related.vote_score > 0 && "text-accent"
-                          )} />
-                          {related.vote_score}
-                          <span className="mx-2">·</span>
-                          {RESOURCE_TYPE_LABELS[related.resource_type]}
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Heart className={cn(
+                              "w-3 h-3",
+                              related.vote_score > 0 && "text-accent"
+                            )} />
+                            {related.vote_score}
+                          </span>
+                          <span>·</span>
+                          <span>{RESOURCE_TYPE_LABELS[related.resource_type]}</span>
                         </div>
                       </Link>
                     ))}
                   </div>
                   <Link
                     to={`/resources?category=${resource.category_slug}`}
-                    className="block mt-4 text-sm text-primary hover:underline"
+                    className="block mt-4 text-sm text-primary hover:text-primary/80 font-semibold transition-colors"
                   >
                     Se alle i {resource.category_name} →
                   </Link>
